@@ -250,7 +250,8 @@ app.get('/api/importi-disponibili/:username', async (req, res) => {
 app.post('/api/richiesta-prelievo', async (req, res) => {
   try {
     const { username, importo } = req.body;
-    if (!importo || importo <= 0) {
+     const importo = parseFloat(req.body.importo);
+    if (isNaN(importo) || importo <= 0) {
       return res.json({ success: false, message: 'Importo non valido' });
     }
     const db = await connectToMongo();
