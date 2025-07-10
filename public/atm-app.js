@@ -94,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         document.getElementById('prelievo-form').onsubmit = async (e) => {
           e.preventDefault();
-          const importo = parseInt(document.getElementById('importo').value, 10);
+          const importo = parseFloat(document.getElementById('importo').value);
           const res = await fetch('/api/richiesta-prelievo', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
