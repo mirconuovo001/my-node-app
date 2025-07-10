@@ -250,8 +250,8 @@ app.get('/api/importi-disponibili/:username', async (req, res) => {
 app.post('/api/richiesta-prelievo', async (req, res) => {
   try {
     const { username, importo } = req.body;
-     const importo = parseFloat(req.body.importo);
-    if (isNaN(importo) || importo <= 0) {
+    const importoNum = parseFloat(importo); // uso un nome diverso!
+    if (isNaN(importoNum) || importoNum <= 0) {
       return res.json({ success: false, message: 'Importo non valido' });
     }
     const db = await connectToMongo();
@@ -259,12 +259,12 @@ app.post('/api/richiesta-prelievo', async (req, res) => {
     if (!user) {
       return res.json({ success: false, message: 'Utente non trovato' });
     }
-    if (user.saldo < importo) {
+    if (user.saldo < importoNum) {
       return res.json({ success: false, message: 'Saldo insufficiente' });
     }
     await db.collection('richieste').insertOne({
       username,
-      importo,
+      importo: importoNum,
       stato: 'in attesa',
       data: new Date().toISOString(),
       tipo: 'prelievo'
@@ -273,7 +273,7 @@ app.post('/api/richiesta-prelievo', async (req, res) => {
       $push: {
         storico: {
           tipo: 'richiesta-prelievo',
-          importo,
+          importo: importoNum,
           data: new Date().toISOString(),
           note: 'Richiesta inviata'
         }
