@@ -63,3 +63,86 @@ div[id$="-area"] > div, .user-color {
   display: inline-block;
 }
 label { font-weight: 500; margin-bottom: 0.2em; display: block;}
+
+/* New styles for dynamic input management */
+.importo-input {
+  display: flex;
+  align-items: center;
+  margin: 8px 0;
+  padding: 8px;
+  background: #f9f9f9;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+}
+
+.importo-input input {
+  width: 100px;
+  margin-right: 10px;
+  margin-bottom: 0;
+}
+
+.importo-input button {
+  width: auto;
+  padding: 4px 8px;
+  margin: 0;
+  font-size: 0.9em;
+  background: #dc3545;
+  border: none;
+}
+
+.importo-input button:hover {
+  background: #c82333;
+}
+
+/* Edit/Delete buttons for messages and requests */
+.edit-delete-btn {
+  font-size: 0.8em;
+  padding: 2px 6px;
+  margin: 0 2px;
+  width: auto;
+  background: #6c757d;
+  border: none;
+}
+
+.edit-delete-btn:hover {
+  background: #545b62;
+}
+
+.edit-delete-btn.edit {
+  background: #007bff;
+}
+
+.edit-delete-btn.edit:hover {
+  background: #0056b3;
+}
+
+.edit-delete-btn.delete {
+  background: #dc3545;
+}
+
+.edit-delete-btn.delete:hover {
+  background: #c82333;
+}
+
+/* Dialog styling */
+.modal-dialog {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}

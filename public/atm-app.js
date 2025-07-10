@@ -70,8 +70,13 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('richiedi-prelievo').onclick = async () => {
         const area = document.getElementById('miss-area');
         area.innerHTML = "<h3>Richiedi prelievo</h3><p>Caricamento importi disponibili...</p>";
-        const res = await fetch('/api/importi-disponibili');
-        const importi = await res.json();
+        const res = await fetch('/api/importi-disponibili/' + encodeURIComponent(session.username));
+        const data = await res.json();
+        if (!data.success) {
+          area.innerHTML = `<h3>Richiedi prelievo</h3><p>${data.message}</p>`;
+          return;
+        }
+        const importi = data.importi;
         area.innerHTML = `
           <h3>Richiedi prelievo</h3>
           <div style="background: #e8f4fd; border: 1px solid #2a5298; border-radius: 8px; padding: 1em; margin-bottom: 1em;">
@@ -368,22 +373,76 @@ document.addEventListener('DOMContentLoaded', () => {
 
       document.getElementById('gestisci-prelievi').onclick = async () => {
         const area = document.getElementById('operatore-area');
+        const utentiRes = await fetch('/api/utenti');
+        const utenti = await utentiRes.json();
         area.innerHTML = `
-          <h3>Imposta importi disponibili</h3>
+          <h3>Imposta importi disponibili per utente</h3>
           <form id="importi-form">
-            <label for="importi">Importi separati da virgola (es: 10,20,50,100):</label>
-            <input type="text" id="importi" required value="10,20,50,100" />
-            <button type="submit">Aggiorna</button>
+            <label for="userImporti">Seleziona utente:</label>
+            <select id="userImporti" required>
+              <option value="">Seleziona un utente</option>
+              ${utenti.map(u => `<option value="${u.username}">${u.username}</option>`).join('')}
+            </select>
+            <div id="importi-container" style="display: none;">
+              <label>Importi disponibili:</label>
+              <div id="importi-inputs"></div>
+              <button type="button" id="aggiungi-importo">Aggiungi importo</button>
+              <button type="submit">Salva importi</button>
+            </div>
           </form>
           <div id="importi-msg"></div>
         `;
+        
+        document.getElementById('userImporti').onchange = async function() {
+          const username = this.value;
+          const container = document.getElementById('importi-container');
+          if (!username) {
+            container.style.display = 'none';
+            return;
+          }
+          
+          // Get current amounts for this user
+          const res = await fetch('/api/importi-disponibili/' + encodeURIComponent(username));
+          const data = await res.json();
+          const importi = data.success ? data.importi : [10, 20, 50, 100];
+          
+          container.style.display = 'block';
+          renderImportiInputs(importi);
+        };
+        
+        function renderImportiInputs(importi) {
+          const inputsContainer = document.getElementById('importi-inputs');
+          inputsContainer.innerHTML = importi.map((importo, index) => `
+            <div class="importo-input" style="display: flex; align-items: center; margin: 5px 0;">
+              <input type="number" value="${importo}" min="1" style="width: 100px; margin-right: 10px;" data-index="${index}">
+              <button type="button" onclick="rimuoviImporto(${index})">Rimuovi</button>
+            </div>
+          `).join('');
+        }
+        
+        window.rimuoviImporto = function(index) {
+          const inputs = document.querySelectorAll('.importo-input input');
+          const importi = Array.from(inputs).map(input => parseInt(input.value, 10)).filter((_, i) => i !== index);
+          renderImportiInputs(importi);
+        };
+        
+        document.getElementById('aggiungi-importo').onclick = function() {
+          const inputs = document.querySelectorAll('.importo-input input');
+          const importi = Array.from(inputs).map(input => parseInt(input.value, 10));
+          importi.push(10); // Default new value
+          renderImportiInputs(importi);
+        };
+        
         document.getElementById('importi-form').onsubmit = async (e) => {
           e.preventDefault();
-          const importi = document.getElementById('importi').value.split(',').map(x => parseInt(x.trim(), 10)).filter(x => x > 0);
-          const res = await fetch('/api/imposta-importi', {
+          const username = document.getElementById('userImporti').value;
+          const inputs = document.querySelectorAll('.importo-input input');
+          const importi = Array.from(inputs).map(input => parseInt(input.value, 10)).filter(x => x > 0);
+          
+          const res = await fetch('/api/imposta-importi-utente', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ importiDisponibili: importi })
+            body: JSON.stringify({ username, importiDisponibili: importi })
           });
           const data = await res.json();
           document.getElementById('importi-msg').innerText = data.message;
@@ -422,10 +481,13 @@ document.addEventListener('DOMContentLoaded', () => {
               <br>Stato: <b>${r.stato}</b> 
               <br><i>Data richiesta: ${new Date(r.data).toLocaleString()}</i>
               ${r.dataGestione ? `<br><i>Gestita il: ${new Date(r.dataGestione).toLocaleString()}</i>` : ""}
+              ${r.modificato ? `<br><i>Modificata il: ${new Date(r.modificato).toLocaleString()}</i>` : ""}
               ${r.stato === 'in attesa' ? `
-                <button onclick="gestisciRichiesta(${r.id}, true)">Approva</button>
-                <button onclick="gestisciRichiesta(${r.id}, false)">Rifiuta</button>
+                <button onclick="gestisciRichiesta('${r._id}', true)">Approva</button>
+                <button onclick="gestisciRichiesta('${r._id}', false)">Rifiuta</button>
+                <button class="edit-delete-btn edit" onclick="modificaRichiesta('${r._id}', '${r.tipo}')">Modifica</button>
               ` : ""}
+              <button class="edit-delete-btn delete" onclick="eliminaRichiesta('${r._id}')">Elimina</button>
             </div>`;
           }).join("");
       };
@@ -440,6 +502,128 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await res.json();
         alert(data.message);
         document.getElementById('vedi-richieste').click();
+      };
+
+      window.modificaRichiesta = async (id, tipo) => {
+        let formHtml = '';
+        if (tipo === 'prelievo') {
+          formHtml = `
+            <label for="nuovo-importo">Nuovo importo:</label>
+            <input type="number" id="nuovo-importo" min="1" required>
+          `;
+        } else if (tipo === 'cambio-profilo') {
+          formHtml = `
+            <label for="nuovo-username-mod">Nuovo username:</label>
+            <input type="text" id="nuovo-username-mod">
+            <label for="nuovo-pin-mod">Nuovo PIN:</label>
+            <input type="password" id="nuovo-pin-mod" maxlength="6">
+          `;
+        }
+        
+        const dialogHtml = `
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <h3>Modifica richiesta</h3>
+              <form id="modifica-richiesta-form">
+                ${formHtml}
+                <button type="submit">Salva modifiche</button>
+                <button type="button" onclick="chiudiDialog()">Annulla</button>
+              </form>
+            </div>
+          </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', dialogHtml);
+        
+        document.getElementById('modifica-richiesta-form').onsubmit = async (e) => {
+          e.preventDefault();
+          let requestData = {};
+          
+          if (tipo === 'prelievo') {
+            requestData.importo = document.getElementById('nuovo-importo').value;
+          } else if (tipo === 'cambio-profilo') {
+            requestData.nuovoUsername = document.getElementById('nuovo-username-mod').value;
+            requestData.nuovoPin = document.getElementById('nuovo-pin-mod').value;
+          }
+          
+          const res = await fetch('/api/modifica-richiesta/' + id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestData)
+          });
+          const data = await res.json();
+          alert(data.message);
+          chiudiDialog();
+          document.getElementById('vedi-richieste').click();
+        };
+      };
+
+      window.eliminaRichiesta = async (id) => {
+        if (!confirm('Sei sicuro di voler eliminare questa richiesta?')) return;
+        
+        const res = await fetch('/api/elimina-richiesta/' + id, {
+          method: 'DELETE'
+        });
+        const data = await res.json();
+        alert(data.message);
+        document.getElementById('vedi-richieste').click();
+      };
+
+      window.chiudiDialog = () => {
+        const dialog = document.querySelector('.modal-dialog');
+        if (dialog) dialog.remove();
+      };
+
+      window.modificaMessaggio = async (id, messaggioAttuale) => {
+        const dialogHtml = `
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <h3>Modifica messaggio</h3>
+              <form id="modifica-messaggio-form">
+                <label for="nuovo-messaggio">Nuovo messaggio:</label>
+                <textarea id="nuovo-messaggio" rows="3" required>${messaggioAttuale}</textarea>
+                <button type="submit">Salva modifiche</button>
+                <button type="button" onclick="chiudiDialog()">Annulla</button>
+              </form>
+            </div>
+          </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', dialogHtml);
+        
+        document.getElementById('modifica-messaggio-form').onsubmit = async (e) => {
+          e.preventDefault();
+          const nuovoMessaggio = document.getElementById('nuovo-messaggio').value;
+          
+          const res = await fetch('/api/modifica-messaggio/' + id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nuovoMessaggio })
+          });
+          const data = await res.json();
+          alert(data.message);
+          chiudiDialog();
+          // Refresh the current conversation view
+          const usernameMatch = window.location.href.match(/username=([^&]+)/);
+          if (usernameMatch) {
+            apriConversazione(usernameMatch[1]);
+          }
+        };
+      };
+
+      window.eliminaMessaggio = async (id) => {
+        if (!confirm('Sei sicuro di voler eliminare questo messaggio?')) return;
+        
+        const res = await fetch('/api/elimina-messaggio/' + id, {
+          method: 'DELETE'
+        });
+        const data = await res.json();
+        alert(data.message);
+        // Refresh the current conversation view
+        const usernameMatch = window.location.href.match(/username=([^&]+)/);
+        if (usernameMatch) {
+          apriConversazione(usernameMatch[1]);
+        }
       };
 
       document.getElementById('modifica-saldo').onclick = async () => {
@@ -589,10 +773,15 @@ document.addEventListener('DOMContentLoaded', () => {
             <div style="${stile} padding: 8px; margin: 8px 0; border-radius: 8px;">
               <div style="font-weight: bold; color: ${isOperatore ? '#4caf50' : '#ff9800'};">
                 ${isOperatore ? 'Tu (Bancomat)' : username}
+                ${isOperatore ? `
+                  <button class="edit-delete-btn edit" onclick="modificaMessaggio('${msg._id}', '${msg.messaggio.replace(/'/g, "\\'")}')">Modifica</button>
+                  <button class="edit-delete-btn delete" onclick="eliminaMessaggio('${msg._id}')">Elimina</button>
+                ` : ''}
               </div>
               <div style="margin: 4px 0;">${msg.messaggio}</div>
               <div style="font-size: 0.8em; color: #666;">
                 ${new Date(msg.data).toLocaleString()}
+                ${msg.modificato ? ` (Modificato: ${new Date(msg.modificato).toLocaleString()})` : ''}
               </div>
             </div>
           `;
@@ -633,56 +822,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Gestione richiesta nuovo utente - spostata fuori dal dashboard operatore
-  document.getElementById('richiedi-nuovo-utente').onclick = () => {
-    const loginForm = document.getElementById('login-form');
-    const richiediBtn = document.getElementById('richiedi-nuovo-utente');
 
-    loginForm.style.display = 'none';
-    richiediBtn.style.display = 'none';
-
-    appDiv.innerHTML = `
-      <h3>Richiesta creazione nuovo utente</h3>
-      <form id="form-nuovo-utente">
-        <label for="nuovo-username">Username desiderato:</label>
-        <input type="text" id="nuovo-username" required>
-        <label for="nuovo-pin">PIN desiderato:</label>
-        <input type="password" id="nuovo-pin" maxlength="6" required>
-        <label for="nuovo-nome">Nome completo:</label>
-        <input type="text" id="nuovo-nome" required>
-        <button type="submit">Invia richiesta</button>
-        <button type="button" id="annulla-nuovo-utente">Annulla</button>
-      </form>
-      <div id="msg-nuovo-utente"></div>
-    `;
-
-    document.getElementById('form-nuovo-utente').onsubmit = async (e) => {
-      e.preventDefault();
-      const username = document.getElementById('nuovo-username').value.trim();
-      const pin = document.getElementById('nuovo-pin').value.trim();
-      const nome = document.getElementById('nuovo-nome').value.trim();
-
-      try {
-        const res = await fetch('/api/richiesta-nuovo-utente', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, pin, nome })
-        });
-        const data = await res.json();
-        document.getElementById('msg-nuovo-utente').innerText = data.message;
-
-        if (data.success) {
-          setTimeout(() => {
-            location.reload();
-          }, 2000);
-        }
-      } catch (error) {
-        document.getElementById('msg-nuovo-utente').innerText = 'Errore di connessione';
-      }
-    };
-
-    document.getElementById('annulla-nuovo-utente').onclick = () => {
-      location.reload();
-    };
-  };
 });

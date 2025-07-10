@@ -234,11 +234,21 @@ app.get('/api/lista-conversazioni', async (req, res) => {
 
 // --- MISS SECTION ---
 
-// Importi disponibili per prelievi
-app.get('/api/importi-disponibili', async (req, res) => {
-  const db = await connectToMongo();
-  const op = await db.collection('users').findOne({ role: 'operatore' });
-  res.json(op ? op.importiDisponibili : [10,20,50,100]);
+// Importi disponibili per prelievi (per-user)
+app.get('/api/importi-disponibili/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    const db = await connectToMongo();
+    const user = await db.collection('users').findOne({ username, role: 'miss' });
+    if (!user) {
+      return res.json({ success: false, message: 'Utente non trovato' });
+    }
+    // Return user-specific amounts, or default if not set
+    const importi = user.importiDisponibili || [10, 20, 50, 100];
+    res.json({ success: true, importi });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
 });
 
 // Richiesta prelievo (Miss)
@@ -452,13 +462,23 @@ app.post('/api/modifica-saldo', async (req, res) => {
   }
 });
 
-// Imposta importi disponibili (Operatore)
-app.post('/api/imposta-importi', async (req, res) => {
+// Imposta importi disponibili per utente specifico (Operatore)
+app.post('/api/imposta-importi-utente', async (req, res) => {
   try {
-    const { importiDisponibili } = req.body;
+    const { username, importiDisponibili } = req.body;
+    if (!username) {
+      return res.json({ success: false, message: 'Username richiesto' });
+    }
     const db = await connectToMongo();
-    await db.collection('users').updateOne({ role: 'operatore' }, { $set: { importiDisponibili } });
-    res.json({ success: true, message: 'Importi aggiornati!' });
+    const user = await db.collection('users').findOne({ username, role: 'miss' });
+    if (!user) {
+      return res.json({ success: false, message: 'Utente non trovato' });
+    }
+    await db.collection('users').updateOne(
+      { username, role: 'miss' }, 
+      { $set: { importiDisponibili } }
+    );
+    res.json({ success: true, message: 'Importi aggiornati per ' + username + '!' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Errore server' });
   }
@@ -653,6 +673,93 @@ app.post('/api/cambia-profilo-operatore', async (req, res) => {
   console.error('ERRORE LOGIN:', err); 
   res.status(500).json({ success: false, message: 'Errore server' });
 }
+});
+
+// --- EDIT/DELETE FUNCTIONALITY ---
+
+// Edit message (Operatore)
+app.put('/api/modifica-messaggio/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nuovoMessaggio } = req.body;
+    if (!nuovoMessaggio || !nuovoMessaggio.trim()) {
+      return res.json({ success: false, message: 'Messaggio vuoto' });
+    }
+    const db = await connectToMongo();
+    const result = await db.collection('messaggi').updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { messaggio: nuovoMessaggio.trim(), modificato: new Date().toISOString() } }
+    );
+    if (result.matchedCount === 0) {
+      return res.json({ success: false, message: 'Messaggio non trovato' });
+    }
+    res.json({ success: true, message: 'Messaggio modificato!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
+});
+
+// Delete message (Operatore)
+app.delete('/api/elimina-messaggio/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = await connectToMongo();
+    const result = await db.collection('messaggi').deleteOne({ _id: new ObjectId(id) });
+    if (result.deletedCount === 0) {
+      return res.json({ success: false, message: 'Messaggio non trovato' });
+    }
+    res.json({ success: true, message: 'Messaggio eliminato!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
+});
+
+// Edit request (Operatore)
+app.put('/api/modifica-richiesta/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { importo, nuovoUsername, nuovoPin } = req.body;
+    const db = await connectToMongo();
+    const richiesta = await db.collection('richieste').findOne({ _id: new ObjectId(id) });
+    if (!richiesta) {
+      return res.json({ success: false, message: 'Richiesta non trovata' });
+    }
+    
+    const updateData = { modificato: new Date().toISOString() };
+    if (richiesta.tipo === 'prelievo' && importo) {
+      updateData.importo = parseFloat(importo);
+    }
+    if (richiesta.tipo === 'cambio-profilo') {
+      if (nuovoUsername) updateData.nuovoUsername = nuovoUsername;
+      if (nuovoPin) updateData.nuovoPin = nuovoPin;
+    }
+    
+    const result = await db.collection('richieste').updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updateData }
+    );
+    if (result.matchedCount === 0) {
+      return res.json({ success: false, message: 'Richiesta non trovata' });
+    }
+    res.json({ success: true, message: 'Richiesta modificata!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
+});
+
+// Delete request (Operatore)
+app.delete('/api/elimina-richiesta/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = await connectToMongo();
+    const result = await db.collection('richieste').deleteOne({ _id: new ObjectId(id) });
+    if (result.deletedCount === 0) {
+      return res.json({ success: false, message: 'Richiesta non trovata' });
+    }
+    res.json({ success: true, message: 'Richiesta eliminata!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
 });
 
 // --- STARTUP ---
