@@ -436,34 +436,39 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     area.innerHTML = "<h4>Richieste di tutti gli utenti</h4>" +
-      richieste.reverse().map(r => {
-        const color = usernameToColor(r.username || "");
-        let label = '';
-        if (r.tipo === 'prelievo') {
-          label = `Prelievo di <b>${r.importo}€</b>`;
-        } else if (r.tipo === 'cambio-profilo') {
-          let campi = [];
-          if (r.nuovoUsername) campi.push(`Nuovo username: <b>${r.nuovoUsername}</b>`);
-          if (r.nuovoPin) campi.push(`Nuovo PIN: <b>${r.nuovoPin}</b>`);
-          label = `Cambio username/PIN<br>${campi.join('<br>')}`;
-        } else if (r.tipo === 'creazione-nuovo-utente') {
-          label = `Richiesta nuovo utente<br>
-                   Username: <b>${r.usernameRichiesto}</b><br>
-                   PIN: <b>${r.pinRichiesto}</b><br>
-                   Nome: <b>${r.nomeCompleto}</b>`;
-        }
-        return `<div style="border:1px solid #6ef5c5; margin:8px; padding:8px;">
-          <span class="user-color" style="background:${color}">${r.username || ''}</span> 
-          - ${label} 
-          <br>Stato: <b>${r.stato}</b> 
-          <br><i>Data richiesta: ${r.data ? new Date(r.data).toLocaleString() : ''}</i>
-          ${r.dataGestione ? `<br><i>Gestita il: ${new Date(r.dataGestione).toLocaleString()}</i>` : ""}
-          ${r.stato === 'in attesa' ? `
-            <button onclick="gestisciRichiesta('${r._id}', true)">Approva</button>
-            <button onclick="gestisciRichiesta('${r._id}', false)">Rifiuta</button>
-          ` : ""}
-        </div>`;
-      }).join("");
+  richieste.reverse().map(r => {
+    const color = usernameToColor(r.username || "");
+    let label = '';
+    if (r.tipo === 'prelievo') {
+      label = `Prelievo di <b>${r.importo}€</b>`;
+    } else if (r.tipo === 'cambio-profilo') {
+      let campi = [];
+      if (r.nuovoUsername) campi.push(`Nuovo username: <b>${r.nuovoUsername}</b>`);
+      if (r.nuovoPin) campi.push(`Nuovo PIN: <b>${r.nuovoPin}</b>`);
+      label = `Cambio username/PIN<br>${campi.join('<br>')}`;
+    } else if (r.tipo === 'creazione-nuovo-utente') {
+      label = `Richiesta nuovo utente<br>
+               Username: <b>${r.usernameRichiesto}</b><br>
+               PIN: <b>${r.pinRichiesto}</b><br>
+               Nome: <b>${r.nomeCompleto}</b>`;
+    }
+    return `<div style="border:1px solid #6ef5c5; margin:8px; padding:8px;">
+      <span class="user-color" style="background:${color}">${r.username || ''}</span> 
+      - ${label} 
+      <br>Stato: <b>${r.stato}</b> 
+      <br><i>Data richiesta: ${r.data ? new Date(r.data).toLocaleString() : ''}</i>
+      ${r.dataGestione ? `<br><i>Gestita il: ${new Date(r.dataGestione).toLocaleString()}</i>` : ""}
+      ${(session.role === 'operatore') ? `
+        <button onclick="eliminaRichiesta('${r._id}')">Elimina</button>
+        <button onclick="modificaRichiesta('${r._id}', '${r.note ? r.note.replace(/'/g, "\\'") : ""}')">Modifica</button>
+      ` : ""}
+      ${r.stato === 'in attesa' ? `
+        <button onclick="gestisciRichiesta('${r._id}', true)">Approva</button>
+        <button onclick="gestisciRichiesta('${r._id}', false)">Rifiuta</button>
+      ` : ""}
+    </div>`;
+  }).join("");
+    
   } catch (error) {
     area.innerHTML = `<p>Errore JS: ${error.message}</p>`;
     console.error(error);
@@ -481,6 +486,29 @@ document.addEventListener('DOMContentLoaded', () => {
         alert(data.message);
         document.getElementById('vedi-richieste').click();
       };
+
+      window.eliminaRichiesta = async (id) => {
+  if (confirm('Vuoi eliminare questa richiesta?')) {
+    await fetch('/api/elimina-richiesta', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    document.getElementById('vedi-richieste').click();
+  }
+};
+
+window.modificaRichiesta = async (id, notaAttuale) => {
+  const nuovaNota = prompt('Modifica la nota della richiesta:', notaAttuale || '');
+  if (nuovaNota !== null && nuovaNota !== notaAttuale) {
+    await fetch('/api/modifica-richiesta', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, nuoviCampi: { note: nuovaNota } })
+    });
+    document.getElementById('vedi-richieste').click();
+  }
+};
 
       document.getElementById('modifica-saldo').onclick = async () => {
         const area = document.getElementById('operatore-area');
@@ -621,22 +649,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const conversazioneHtml = data.conversazione.map(msg => {
-          const isOperatore = msg.mittente === 'operatore';
-          const stile = isOperatore ? 
-            'background: #e8f5e8; border-left: 4px solid #4caf50; text-align: right;' : 
-            'background: #fff3e0; border-left: 4px solid #ff9800; text-align: left;';
-          return `
-            <div style="${stile} padding: 8px; margin: 8px 0; border-radius: 8px;">
-              <div style="font-weight: bold; color: ${isOperatore ? '#4caf50' : '#ff9800'};">
-                ${isOperatore ? 'Tu (Bancomat)' : username}
-              </div>
-              <div style="margin: 4px 0;">${msg.messaggio}</div>
-              <div style="font-size: 0.8em; color: #666;">
-                ${new Date(msg.data).toLocaleString()}
-              </div>
-            </div>
-          `;
-        }).join('');
+  const isOperatore = msg.mittente === 'operatore';
+  const stile = isOperatore ? 
+    'background: #e8f5e8; border-left: 4px solid #4caf50; text-align: right;' : 
+    'background: #fff3e0; border-left: 4px solid #ff9800; text-align: left;';
+  return `
+    <div style="${stile} padding: 8px; margin: 8px 0; border-radius: 8px;">
+      <div style="font-weight: bold; color: ${isOperatore ? '#4caf50' : '#ff9800'};">
+        ${isOperatore ? 'Tu (Bancomat)' : username}
+      </div>
+      <div style="margin: 4px 0;" id="messaggio-testo-${msg._id}">${msg.messaggio}</div>
+      <div style="font-size: 0.8em; color: #666;">
+        ${new Date(msg.data).toLocaleString()}
+      </div>
+      ${(session.role === 'operatore' || (session.role === 'miss' && msg.mittente === session.username)) ? `
+        <button onclick="eliminaMessaggio('${msg._id}')">Elimina</button>
+        <button onclick="modificaMessaggio('${msg._id}', \`${msg.messaggio.replace(/`/g, '\\`')}\`)">Modifica</button>
+      ` : ''}
+    </div>
+  `;
+}).join('');
 
         area.innerHTML = `
           <h3>💬 Chat con ${username}</h3>
@@ -669,6 +701,31 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         };
       };
+      window.eliminaMessaggio = async (id) => {
+  if (confirm('Vuoi eliminare questo messaggio?')) {
+    await fetch('/api/elimina-messaggio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    // Ricarica conversazione
+    const title = document.querySelector('#operatore-area h3');
+    const username = title ? title.textContent.replace('💬 Chat con ', '') : '';
+    if (username) window.apriConversazione(username);
+  }
+};
+
+window.modificaMessaggio = async (id, testoAttuale) => {
+  const nuovoTesto = prompt('Modifica il messaggio:', testoAttuale);
+  if (nuovoTesto && nuovoTesto !== testoAttuale) {
+    await fetch('/api/modifica-messaggio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, nuovoTesto })
+    });
+    document.getElementById('messaggio-testo-' + id).textContent = nuovoTesto;
+  }
+};
     }
   }
 
