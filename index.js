@@ -56,6 +56,7 @@ app.get('/', (req, res) => {
 
 // LOGIN API
 app.post('/api/login', async (req, res) => {
+  console.log('RICHIESTA LOGIN ARRIVATA', req.body);
   try {
     const { role, username, pin } = req.body;
     const db = await connectToMongo();
