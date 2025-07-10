@@ -44,6 +44,9 @@ button:hover {
   background: linear-gradient(90deg, #2a5298 0%, #1e3c72 100%);
   color: #c6eaff;
 }
+#richiedi-nuovo-utente {
+  margin-top: 1.2em;
+}
 h1 { text-align: center; color: #1e3c72;}
 h2 { color: #2a5298; margin-bottom: 1.3rem;}
 ul { list-style: none; padding-left: 0; margin-bottom: 1.5em;}
