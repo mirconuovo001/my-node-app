@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('richiedi-prelievo').onclick = async () => {
         const area = document.getElementById('miss-area');
         area.innerHTML = "<h3>Richiedi prelievo</h3><p>Caricamento importi disponibili...</p>";
-        const res = await fetch('/api/importi-disponibili');
+        const res = await fetch('/api/importi-disponibili/' + encodeURIComponent(session.username));
         const importi = await res.json();
         area.innerHTML = `
           <h3>Richiedi prelievo</h3>
@@ -368,26 +368,76 @@ document.addEventListener('DOMContentLoaded', () => {
 
       document.getElementById('gestisci-prelievi').onclick = async () => {
         const area = document.getElementById('operatore-area');
-        area.innerHTML = `
-          <h3>Imposta importi disponibili</h3>
-          <form id="importi-form">
-            <label for="importi">Importi separati da virgola (es: 10,20,50,100):</label>
-            <input type="text" id="importi" required value="10,20,50,100" />
-            <button type="submit">Aggiorna</button>
-          </form>
-          <div id="importi-msg"></div>
-        `;
-        document.getElementById('importi-form').onsubmit = async (e) => {
-          e.preventDefault();
-          const importi = document.getElementById('importi').value.split(',').map(x => parseInt(x.trim(), 10)).filter(x => x > 0);
-          const res = await fetch('/api/imposta-importi', {
+        area.innerHTML = "<h3>Imposta importi disponibili per utente</h3><p>Caricamento utenti...</p>";
+        
+        try {
+          const res = await fetch('/api/utenti-importi');
+          const utenti = await res.json();
+          
+          if (utenti.length === 0) {
+            area.innerHTML = "<h3>Imposta importi disponibili per utente</h3><p>Nessun utente trovato.</p>";
+            return;
+          }
+
+          let html = `
+            <h3>Imposta importi disponibili per utente</h3>
+            <p><strong>Istruzioni:</strong> Inserisci gli importi separati da virgola (es: 10,20,50,100)</p>
+            <div id="utenti-importi-container">
+          `;
+
+          utenti.forEach(utente => {
+            const importiString = utente.importiDisponibili.join(',');
+            html += `
+              <div style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 8px; background: #f9f9f9;">
+                <h4>${utente.username}</h4>
+                <label for="importi-${utente.username}">Importi disponibili:</label>
+                <input type="text" id="importi-${utente.username}" value="${importiString}" style="width: 200px; margin: 0 10px;" />
+                <button onclick="aggiornaImporti('${utente.username}')" style="margin-left: 10px;">💾 Salva</button>
+                <div id="msg-${utente.username}" style="margin-top: 5px; font-size: 0.9em;"></div>
+              </div>
+            `;
+          });
+
+          html += `
+            </div>
+            <button onclick="document.getElementById('gestisci-prelievi').click()" style="margin-top: 15px;">🔄 Aggiorna lista</button>
+          `;
+
+          area.innerHTML = html;
+        } catch (err) {
+          area.innerHTML = "<h3>Imposta importi disponibili per utente</h3><p>Errore nel caricamento dei dati.</p>";
+        }
+      };
+
+      window.aggiornaImporti = async (username) => {
+        const input = document.getElementById(`importi-${username}`);
+        const msgDiv = document.getElementById(`msg-${username}`);
+        
+        try {
+          const importiString = input.value.trim();
+          const importi = importiString.split(',').map(x => parseInt(x.trim(), 10)).filter(x => x > 0);
+          
+          if (importi.length === 0) {
+            msgDiv.innerHTML = '<span style="color: red;">❌ Inserisci almeno un importo valido</span>';
+            return;
+          }
+
+          const res = await fetch('/api/imposta-importi-utente', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ importiDisponibili: importi })
+            body: JSON.stringify({ username, importiDisponibili: importi })
           });
+          
           const data = await res.json();
-          document.getElementById('importi-msg').innerText = data.message;
-        };
+          
+          if (data.success) {
+            msgDiv.innerHTML = '<span style="color: green;">✅ ' + data.message + '</span>';
+          } else {
+            msgDiv.innerHTML = '<span style="color: red;">❌ ' + data.message + '</span>';
+          }
+        } catch (err) {
+          msgDiv.innerHTML = '<span style="color: red;">❌ Errore di connessione</span>';
+        }
       };
 
       document.getElementById('vedi-richieste').onclick = async () => {

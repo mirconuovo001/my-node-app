@@ -7,15 +7,122 @@ const PORT = process.env.PORT || 3000;
 
 // --- MONGODB CONNECTION ---
 const uri = process.env.MONGODB_URI;
-const client = new MongoClient(uri);
+let client, db;
 
-let db;
+// In-memory storage for demo when MongoDB is not available
+let demoData = {
+  users: [
+    {
+      _id: '1',
+      role: 'operatore',
+      username: 'admin',
+      pin: '123456',
+      storico: []
+    },
+    {
+      _id: '2',
+      role: 'miss',
+      username: 'user1',
+      pin: '111111',
+      saldo: 10000,
+      accountPaypal: 'user1@example.com',
+      storico: [],
+      importiDisponibili: [10, 20, 50, 100]
+    },
+    {
+      _id: '3',
+      role: 'miss',
+      username: 'user2',
+      pin: '222222',
+      saldo: 5000,
+      accountPaypal: 'user2@example.com',
+      storico: [],
+      importiDisponibili: [5, 15, 25, 50]
+    }
+  ],
+  messaggi: [],
+  richieste: []
+};
+
+let useDemo = false;
+
 async function connectToMongo() {
-  if (!db) {
-    await client.connect();
-    db = client.db('appdb');
+  if (useDemo) {
+    return createDemoDb();
   }
-  return db;
+  
+  if (!db && uri) {
+    try {
+      client = new MongoClient(uri);
+      await client.connect();
+      db = client.db('appdb');
+    } catch (err) {
+      console.log('MongoDB connection failed, using demo mode:', err.message);
+      useDemo = true;
+      return createDemoDb();
+    }
+  }
+  return db || createDemoDb();
+}
+
+function createDemoDb() {
+  return {
+    collection: (name) => ({
+      findOne: async (query) => {
+        const items = demoData[name] || [];
+        return items.find(item => {
+          return Object.keys(query).every(key => item[key] === query[key]);
+        });
+      },
+      find: (query = {}) => ({
+        toArray: async () => {
+          const items = demoData[name] || [];
+          return items.filter(item => {
+            return Object.keys(query).every(key => {
+              if (query[key] && query[key].$or) {
+                return query[key].$or.some(condition => 
+                  Object.keys(condition).every(condKey => item[condKey] === condition[condKey])
+                );
+              }
+              return item[key] === query[key];
+            });
+          });
+        },
+        sort: () => ({ toArray: async () => demoData[name] || [] })
+      }),
+      insertOne: async (doc) => {
+        const items = demoData[name] || [];
+        doc._id = Date.now().toString();
+        items.push(doc);
+        demoData[name] = items;
+        return { insertedId: doc._id };
+      },
+      updateOne: async (query, update) => {
+        const items = demoData[name] || [];
+        const item = items.find(item => 
+          Object.keys(query).every(key => item[key] === query[key])
+        );
+        if (item) {
+          if (update.$set) Object.assign(item, update.$set);
+          if (update.$push) {
+            Object.keys(update.$push).forEach(key => {
+              if (!item[key]) item[key] = [];
+              item[key].push(update.$push[key]);
+            });
+          }
+          if (update.$inc) {
+            Object.keys(update.$inc).forEach(key => {
+              item[key] = (item[key] || 0) + update.$inc[key];
+            });
+          }
+        }
+        return { modifiedCount: item ? 1 : 0 };
+      },
+      aggregate: () => ({
+        toArray: async () => []
+      })
+    })
+  };
 }
 
 // --- UTILS ---
@@ -234,11 +341,19 @@ app.get('/api/lista-conversazioni', async (req, res) => {
 
 // --- MISS SECTION ---
 
-// Importi disponibili per prelievi
-app.get('/api/importi-disponibili', async (req, res) => {
-  const db = await connectToMongo();
-  const op = await db.collection('users').findOne({ role: 'operatore' });
-  res.json(op ? op.importiDisponibili : [10,20,50,100]);
+// Importi disponibili per prelievi (per utente specifico)
+app.get('/api/importi-disponibili/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    const db = await connectToMongo();
+    const user = await db.collection('users').findOne({ username, role: 'miss' });
+    if (!user) {
+      return res.json([10,20,50,100]); // Default amounts if user not found
+    }
+    res.json(user.importiDisponibili || [10,20,50,100]);
+  } catch (err) {
+    res.status(500).json([10,20,50,100]); // Default on error
+  }
 });
 
 // Richiesta prelievo (Miss)
@@ -452,13 +567,37 @@ app.post('/api/modifica-saldo', async (req, res) => {
   }
 });
 
-// Imposta importi disponibili (Operatore)
-app.post('/api/imposta-importi', async (req, res) => {
+// Imposta importi disponibili per utente specifico (Operatore)
+app.post('/api/imposta-importi-utente', async (req, res) => {
   try {
-    const { importiDisponibili } = req.body;
+    const { username, importiDisponibili } = req.body;
+    if (!username || !Array.isArray(importiDisponibili)) {
+      return res.json({ success: false, message: 'Dati non validi' });
+    }
     const db = await connectToMongo();
-    await db.collection('users').updateOne({ role: 'operatore' }, { $set: { importiDisponibili } });
-    res.json({ success: true, message: 'Importi aggiornati!' });
+    const user = await db.collection('users').findOne({ username, role: 'miss' });
+    if (!user) {
+      return res.json({ success: false, message: 'Utente non trovato' });
+    }
+    await db.collection('users').updateOne(
+      { username, role: 'miss' }, 
+      { $set: { importiDisponibili } }
+    );
+    res.json({ success: true, message: 'Importi aggiornati per ' + username + '!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
+});
+
+// Ottieni tutti gli utenti con i loro importi (Operatore)
+app.get('/api/utenti-importi', async (req, res) => {
+  try {
+    const db = await connectToMongo();
+    const utenti = await db.collection('users').find({ role: "miss" }).toArray();
+    res.json(utenti.map(u => ({
+      username: u.username,
+      importiDisponibili: u.importiDisponibili || [10,20,50,100]
+    })));
   } catch (err) {
     res.status(500).json({ success: false, message: 'Errore server' });
   }
@@ -612,6 +751,41 @@ app.post('/api/cambia-profilo-operatore', async (req, res) => {
 });
 
 // --- STARTUP ---
+
+// Test endpoint to create demo data (remove in production)
+app.get('/api/setup-demo', async (req, res) => {
+  try {
+    const db = await connectToMongo();
+    await db.collection('users').deleteMany({});
+    await db.collection('users').insertMany([
+      {
+        role: 'operatore',
+        username: 'admin',
+        pin: '123456',
+        storico: []
+      },
+      {
+        role: 'miss',
+        username: 'user1',
+        pin: '111111',
+        saldo: 10000,
+        accountPaypal: 'user1@example.com',
+        storico: []
+      },
+      {
+        role: 'miss',
+        username: 'user2',
+        pin: '222222',
+        saldo: 5000,
+        accountPaypal: 'user2@example.com',
+        storico: []
+      }
+    ]);
+    res.json({ success: true, message: 'Demo data created' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Error creating demo data' });
+  }
+});
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server in ascolto su http://0.0.0.0:${PORT}`);
