@@ -99,6 +99,7 @@ app.get('/api/statistiche-operatore', (req, res) => {
       visiteOggi: visiteOggi
     });
   } catch (err) {
+    console.error('Errore login:', err); 
     res.status(500).json({ success: false, message: 'Errore server' });
   }
 });
