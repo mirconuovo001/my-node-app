@@ -59,7 +59,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (session.role === "miss") {
       appDiv.innerHTML = `
         <h2>Area Cliente (Miss)</h2>
+        <button onclick="location.reload()" style="margin-bottom:10px;">🔄 Aggiorna pagina</button>
         <ul>
+
           <li><button id="richiedi-prelievo">Richiedi prelievo</button></li>
           <li><button id="stato-richieste">Vedi stato richieste</button></li>
           <li><button id="vedi-saldo">Visualizza saldo</button></li>
@@ -110,19 +112,42 @@ document.addEventListener('DOMContentLoaded', () => {
         area.innerHTML = "<h3>Stato richieste</h3><p>Caricamento...</p>";
         const res = await fetch('/api/stato-richieste/' + encodeURIComponent(session.username));
         const richieste = await res.json();
-        if (!richieste.length) {
-          area.innerHTML = "<p>Nessuna richiesta trovata.</p>";
-          return;
-        }
-        area.innerHTML = richieste.reverse().map(r =>
-          `<div style="border:1px solid #6ef5c5; margin:8px; padding:8px;">
-            <b>${r.tipo === 'prelievo' ? 'Prelievo' : 'Cambio username/PIN'}</b>
-            ${r.tipo === 'prelievo' && r.importo ? `di <b>${r.importo}€</b>` : ""}
-            <br>Stato: <b>${r.stato}</b><br>
-            <i>Data richiesta: ${new Date(r.data).toLocaleString()}</i>
-            ${r.dataGestione ? `<br><i>Gestita il: ${new Date(r.dataGestione).toLocaleString()}</i>` : ""}
-          </div>`
-        ).join("");
+        let filtro = 'tutte'; // tutte, attesa, archiviate
+
+area.innerHTML = `
+  <h4>Filtra richieste:</h4>
+  <button id="filtro-tutte-miss">Tutte</button>
+  <button id="filtro-attesa-miss">Solo in attesa</button>
+  <button id="filtro-archiviate-miss">Solo archiviate</button>
+  <div id="richieste-list-miss"></div>
+`;
+
+function renderRichiesteMiss() {
+  let richiesteFiltrate = richieste;
+  if (filtro === 'attesa') {
+    richiesteFiltrate = richieste.filter(r => r.stato === 'in attesa');
+  } else if (filtro === 'archiviate') {
+    richiesteFiltrate = richieste.filter(r => r.stato !== 'in attesa');
+  }
+  document.getElementById('richieste-list-miss').innerHTML =
+    (richiesteFiltrate.length === 0)
+      ? "<p>Nessuna richiesta trovata.</p>"
+      : richiesteFiltrate.reverse().map(r =>
+        `<div style="border:1px solid #6ef5c5; margin:8px; padding:8px;">
+          <b>${r.tipo === 'prelievo' ? 'Prelievo' : 'Cambio username/PIN'}</b>
+          ${r.tipo === 'prelievo' && r.importo ? `di <b>${r.importo}€</b>` : ""}
+          <br>Stato: <b>${r.stato}</b><br>
+          <i>Data richiesta: ${new Date(r.data).toLocaleString()}</i>
+          ${r.dataGestione ? `<br><i>Gestita il: ${new Date(r.dataGestione).toLocaleString()}</i>` : ""}
+        </div>`
+      ).join("");
+}
+
+renderRichiesteMiss();
+
+document.getElementById('filtro-tutte-miss').onclick = () => { filtro = 'tutte'; renderRichiesteMiss(); };
+document.getElementById('filtro-attesa-miss').onclick = () => { filtro = 'attesa'; renderRichiesteMiss(); };
+document.getElementById('filtro-archiviate-miss').onclick = () => { filtro = 'archiviate'; renderRichiesteMiss(); };
       };
 
       document.getElementById('vedi-saldo').onclick = async () => {
@@ -223,23 +248,67 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        const conversazioneHtml = data.conversazione.map(msg => {
-          const isMio = msg.mittente === session.username;
-          const stile = isMio ? 
-            'background: #e3f2fd; border-left: 4px solid #2196f3; text-align: right;' : 
-            'background: #f3e5f5; border-left: 4px solid #9c27b0; text-align: left;';
-          return `
-            <div style="${stile} padding: 8px; margin: 8px 0; border-radius: 8px;">
-              <div style="font-weight: bold; color: ${isMio ? '#2196f3' : '#9c27b0'};">
-                ${isMio ? 'Tu' : 'Bancomat'}
-              </div>
-              <div style="margin: 4px 0;">${msg.messaggio}</div>
-              <div style="font-size: 0.8em; color: #666;">
-                ${new Date(msg.data).toLocaleString()}
-              </div>
-            </div>
-          `;
-        }).join('');
+        let filtro = 'attiva'; // attiva, archivio
+
+area.innerHTML = `
+  <h4>Filtra chat:</h4>
+  <button id="filtro-attiva-chat">Attiva</button>
+  <button id="filtro-archivio-chat">Archivio</button>
+  <div id="chat-list-miss"></div>
+  <form id="chat-form">
+    <label for="nuovo-messaggio">Scrivi un messaggio:</label>
+    <textarea id="nuovo-messaggio" rows="3" placeholder="Scrivi qui il tuo messaggio..." required></textarea>
+    <button type="submit">Invia messaggio</button>
+  </form>
+  <div id="chat-msg"></div>
+  <button onclick="document.getElementById('chat-operatore').click()" style="margin-top: 10px;">🔄 Aggiorna chat</button>
+`;
+
+function renderChatMiss() {
+  let messaggiFiltrati = data.conversazione;
+  if (filtro === 'archivio') {
+    messaggiFiltrati = messaggiFiltrati.filter(msg => msg.archiviato); // solo archiviati
+  } else {
+    messaggiFiltrati = messaggiFiltrati.filter(msg => !msg.archiviato); // solo attivi
+  }
+  document.getElementById('chat-list-miss').innerHTML =
+  (messaggiFiltrati.length === 0)
+    ? "<p>Nessun messaggio trovato.</p>"
+    : messaggiFiltrati.map(msg => {
+      const isMio = msg.mittente === session.username;
+      const stile = isMio ? 
+        'background: #e3f2fd; border-left: 4px solid #2196f3; text-align: right;' : 
+        'background: #f3e5f5; border-left: 4px solid #9c27b0; text-align: left;';
+      return `
+        <div style="${stile} padding: 8px; margin: 8px 0; border-radius: 8px;">
+          <div style="font-weight: bold; color: ${isMio ? '#2196f3' : '#9c27b0'};">
+            ${isMio ? 'Tu' : 'Bancomat'}
+          </div>
+          <div style="margin: 4px 0;">${msg.messaggio}</div>
+          <div style="font-size: 0.8em; color: #666;">
+            ${new Date(msg.data).toLocaleString()}
+          </div>
+          ${(isMio && !msg.archiviato) ? `<button onclick="archiviaMessaggioMiss('${msg._id}')">Archivia</button>` : ""}
+        </div>
+      `;
+    }).join("");
+
+  window.archiviaMessaggioMiss = async (id) => {
+  if (confirm('Vuoi davvero archiviare questo messaggio?')) {
+    await fetch('/api/archivia-messaggio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    document.getElementById('chat-operatore').click();
+  }
+};
+}
+
+renderChatMiss();
+
+document.getElementById('filtro-attiva-chat').onclick = () => { filtro = 'attiva'; renderChatMiss(); };
+document.getElementById('filtro-archivio-chat').onclick = () => { filtro = 'archivio'; renderChatMiss(); };
 
         area.innerHTML = `
           <h3>💬 Chat con Bancomat</h3>
@@ -275,6 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (session.role === "operatore") {
       appDiv.innerHTML = `
         <h2>Area Operatore (Bancomat Umano)</h2>
+        <button onclick="location.reload()" style="margin-bottom:10px;">🔄 Aggiorna pagina</button>
         <ul>
           <li><button id="gestisci-utenti">Crea/Modifica utente</button></li>
           <li><button id="gestisci-prelievi">Imposta importi disponibili</button></li>
@@ -431,43 +501,66 @@ document.addEventListener('DOMContentLoaded', () => {
     // Log per debug
     console.log('Risposta richieste:', richieste);
 
-    if (!Array.isArray(richieste) || richieste.length === 0) {
-      area.innerHTML = "<p>Nessuna richiesta trovata.</p>";
-      return;
-    }
-    area.innerHTML = "<h4>Richieste di tutti gli utenti</h4>" +
-  richieste.reverse().map(r => {
-    const color = usernameToColor(r.username || "");
-    let label = '';
-    if (r.tipo === 'prelievo') {
-      label = `Prelievo di <b>${r.importo}€</b>`;
-    } else if (r.tipo === 'cambio-profilo') {
-      let campi = [];
-      if (r.nuovoUsername) campi.push(`Nuovo username: <b>${r.nuovoUsername}</b>`);
-      if (r.nuovoPin) campi.push(`Nuovo PIN: <b>${r.nuovoPin}</b>`);
-      label = `Cambio username/PIN<br>${campi.join('<br>')}`;
-    } else if (r.tipo === 'creazione-nuovo-utente') {
-      label = `Richiesta nuovo utente<br>
-               Username: <b>${r.usernameRichiesto}</b><br>
-               PIN: <b>${r.pinRichiesto}</b><br>
-               Nome: <b>${r.nomeCompleto}</b>`;
-    }
-    return `<div style="border:1px solid #6ef5c5; margin:8px; padding:8px;">
-      <span class="user-color" style="background:${color}">${r.username || ''}</span> 
-      - ${label} 
-      <br>Stato: <b>${r.stato}</b> 
-      <br><i>Data richiesta: ${r.data ? new Date(r.data).toLocaleString() : ''}</i>
-      ${r.dataGestione ? `<br><i>Gestita il: ${new Date(r.dataGestione).toLocaleString()}</i>` : ""}
-      ${(session.role === 'operatore') ? `
-        <button onclick="eliminaRichiesta('${r._id}')">Elimina</button>
-        <button onclick="modificaRichiesta('${r._id}', '${r.note ? r.note.replace(/'/g, "\\'") : ""}')">Modifica</button>
-      ` : ""}
-      ${r.stato === 'in attesa' ? `
-        <button onclick="gestisciRichiesta('${r._id}', true)">Approva</button>
-        <button onclick="gestisciRichiesta('${r._id}', false)">Rifiuta</button>
-      ` : ""}
-    </div>`;
-  }).join("");
+    let filtro = 'tutte'; // tutte, attesa, archiviate
+
+area.innerHTML = `
+  <h4>Filtra richieste:</h4>
+  <button id="filtro-tutte">Tutte</button>
+  <button id="filtro-attesa">Solo in attesa</button>
+  <button id="filtro-archiviate">Solo archiviate</button>
+  <div id="richieste-list"></div>
+`;
+
+function renderRichieste() {
+  let richiesteFiltrate = richieste;
+  if (filtro === 'attesa') {
+    richiesteFiltrate = richieste.filter(r => r.stato === 'in attesa');
+  } else if (filtro === 'archiviate') {
+    richiesteFiltrate = richieste.filter(r => r.stato !== 'in attesa');
+  }
+  document.getElementById('richieste-list').innerHTML =
+    (richiesteFiltrate.length === 0)
+      ? "<p>Nessuna richiesta trovata.</p>"
+      : "<h4>Richieste di tutti gli utenti</h4>" +
+        richiesteFiltrate.reverse().map(r => {
+          const color = usernameToColor(r.username || "");
+          let label = '';
+          if (r.tipo === 'prelievo') {
+            label = `Prelievo di <b>${r.importo}€</b>`;
+          } else if (r.tipo === 'cambio-profilo') {
+            let campi = [];
+            if (r.nuovoUsername) campi.push(`Nuovo username: <b>${r.nuovoUsername}</b>`);
+            if (r.nuovoPin) campi.push(`Nuovo PIN: <b>${r.nuovoPin}</b>`);
+            label = `Cambio username/PIN<br>${campi.join('<br>')}`;
+          } else if (r.tipo === 'creazione-nuovo-utente') {
+            label = `Richiesta nuovo utente<br>
+                     Username: <b>${r.usernameRichiesto}</b><br>
+                     PIN: <b>${r.pinRichiesto}</b><br>
+                     Nome: <b>${r.nomeCompleto}</b>`;
+          }
+          return `<div style="border:1px solid #6ef5c5; margin:8px; padding:8px;">
+            <span class="user-color" style="background:${color}">${r.username || ''}</span> 
+            - ${label} 
+            <br>Stato: <b>${r.stato}</b> 
+            <br><i>Data richiesta: ${r.data ? new Date(r.data).toLocaleString() : ''}</i>
+            ${r.dataGestione ? `<br><i>Gestita il: ${new Date(r.dataGestione).toLocaleString()}</i>` : ""}
+            ${(session.role === 'operatore') ? `
+              <button onclick="eliminaRichiesta('${r._id}')">Elimina</button>
+              <button onclick="modificaRichiesta('${r._id}', '${r.note ? r.note.replace(/'/g, "\\'") : ""}')">Modifica</button>
+            ` : ""}
+            ${r.stato === 'in attesa' ? `
+              <button onclick="gestisciRichiesta('${r._id}', true)">Approva</button>
+              <button onclick="gestisciRichiesta('${r._id}', false)">Rifiuta</button>
+            ` : ""}
+          </div>`;
+        }).join("");
+}
+
+renderRichieste();
+
+document.getElementById('filtro-tutte').onclick = () => { filtro = 'tutte'; renderRichieste(); };
+document.getElementById('filtro-attesa').onclick = () => { filtro = 'attesa'; renderRichieste(); };
+document.getElementById('filtro-archiviate').onclick = () => { filtro = 'archiviate'; renderRichieste(); };
     
   } catch (error) {
     area.innerHTML = `<p>Errore JS: ${error.message}</p>`;
