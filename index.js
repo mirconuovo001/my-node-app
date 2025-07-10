@@ -234,11 +234,41 @@ app.get('/api/lista-conversazioni', async (req, res) => {
 
 // --- MISS SECTION ---
 
-// Importi disponibili per prelievi
+// Importi disponibili per prelievi (ora user-specific)
 app.get('/api/importi-disponibili', async (req, res) => {
   const db = await connectToMongo();
   const op = await db.collection('users').findOne({ role: 'operatore' });
   res.json(op ? op.importiDisponibili : [10,20,50,100]);
+});
+
+// Importi disponibili per utente specifico
+app.get('/api/importi-disponibili-utente/:username', async (req, res) => {
+  try {
+    const username = req.params.username;
+    const db = await connectToMongo();
+    const user = await db.collection('users').findOne({ username, role: 'miss' });
+    if (!user) {
+      return res.json([10,20,50,100]); // default values
+    }
+    res.json(user.importiDisponibili || [10,20,50,100]);
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
+});
+
+// Imposta importi disponibili per utente specifico
+app.post('/api/imposta-importi-utente', async (req, res) => {
+  try {
+    const { username, importiDisponibili } = req.body;
+    const db = await connectToMongo();
+    await db.collection('users').updateOne(
+      { username, role: 'miss' }, 
+      { $set: { importiDisponibili } }
+    );
+    res.json({ success: true, message: `Importi aggiornati per ${username}!` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
 });
 
 // Richiesta prelievo (Miss)
@@ -253,6 +283,13 @@ app.post('/api/richiesta-prelievo', async (req, res) => {
     if (!user) {
       return res.json({ success: false, message: 'Utente non trovato' });
     }
+    
+    // Check if the amount is in the user's available amounts
+    const importiDisponibili = user.importiDisponibili || [10,20,50,100];
+    if (!importiDisponibili.includes(importo)) {
+      return res.json({ success: false, message: 'Importo non disponibile per questo utente' });
+    }
+    
     if (user.saldo < importo) {
       return res.json({ success: false, message: 'Saldo insufficiente' });
     }
@@ -653,6 +690,60 @@ app.post('/api/cambia-profilo-operatore', async (req, res) => {
   console.error('ERRORE LOGIN:', err); 
   res.status(500).json({ success: false, message: 'Errore server' });
 }
+});
+
+// Elimina richiesta (Operatore)
+app.delete('/api/elimina-richiesta', async (req, res) => {
+  try {
+    const { id } = req.body;
+    const db = await connectToMongo();
+    const result = await db.collection('richieste').deleteOne({ _id: new ObjectId(id) });
+    if (result.deletedCount === 1) {
+      res.json({ success: true, message: 'Richiesta eliminata con successo.' });
+    } else {
+      res.json({ success: false, message: 'Richiesta non trovata.' });
+    }
+  } catch (err) {
+    console.error('ERRORE ELIMINA RICHIESTA:', err);
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
+});
+
+// Modifica messaggio (Operatore)
+app.put('/api/modifica-messaggio', async (req, res) => {
+  try {
+    const { messageId, nuovoTesto } = req.body;
+    const db = await connectToMongo();
+    const result = await db.collection('messaggi').updateOne(
+      { _id: new ObjectId(messageId) },
+      { $set: { messaggio: nuovoTesto, modificato: true, dataModifica: new Date().toISOString() } }
+    );
+    if (result.matchedCount === 1) {
+      res.json({ success: true, message: 'Messaggio modificato con successo.' });
+    } else {
+      res.json({ success: false, message: 'Messaggio non trovato.' });
+    }
+  } catch (err) {
+    console.error('ERRORE MODIFICA MESSAGGIO:', err);
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
+});
+
+// Elimina messaggio (Operatore)
+app.delete('/api/elimina-messaggio', async (req, res) => {
+  try {
+    const { messageId } = req.body;
+    const db = await connectToMongo();
+    const result = await db.collection('messaggi').deleteOne({ _id: new ObjectId(messageId) });
+    if (result.deletedCount === 1) {
+      res.json({ success: true, message: 'Messaggio eliminato con successo.' });
+    } else {
+      res.json({ success: false, message: 'Messaggio non trovato.' });
+    }
+  } catch (err) {
+    console.error('ERRORE ELIMINA MESSAGGIO:', err);
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
 });
 
 // --- STARTUP ---
