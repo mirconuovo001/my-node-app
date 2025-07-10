@@ -514,25 +514,6 @@ app.post('/api/gestisci-richiesta', async (req, res) => {
       });
     }
 
-    if (richiesta.tipo === 'creazione-nuovo-utente' && approva) {
-      if (await db.collection('users').findOne({ username: richiesta.usernameRichiesto })) {
-        await db.collection('richieste').updateOne({ _id: new ObjectId(id) }, { $set: { stato: 'rifiutata' } });
-        return res.json({ success: false, message: 'Username già esistente. Richiesta rifiutata.' });
-      }
-      await db.collection('users').insertOne({
-        role: "miss",
-        username: richiesta.usernameRichiesto,
-        pin: richiesta.pinRichiesto,
-        saldo: 10000,
-        accountPaypal: '',
-        storico: [{
-          tipo: 'account-creato',
-          data: new Date().toISOString(),
-          note: 'Account creato dall\'operatore'
-        }]
-      });
-    }
-
     if (richiesta.tipo === 'cambio-profilo' && approva) {
       const user = await db.collection('users').findOne({ username: richiesta.username, role: 'miss' });
       if (user) {
@@ -576,31 +557,6 @@ app.post('/api/gestisci-richiesta', async (req, res) => {
   console.error('ERRORE LOGIN:', err); // così vedi l’errore vero nei log
   res.status(500).json({ success: false, message: 'Errore server' });
 }
-});
-
-// Richiesta nuovo utente
-app.post('/api/richiesta-nuovo-utente', async (req, res) => {
-  try {
-    const { username, pin, nome } = req.body;
-    if (!username || !pin || !nome) {
-      return res.json({ success: false, message: "Compila tutti i campi!" });
-    }
-    const db = await connectToMongo();
-    if (await db.collection('users').findOne({ username })) {
-      return res.json({ success: false, message: "Username già esistente!" });
-    }
-    await db.collection('richieste').insertOne({
-      tipo: 'creazione-nuovo-utente',
-      usernameRichiesto: username,
-      pinRichiesto: pin,
-      nomeCompleto: nome,
-      stato: 'in attesa',
-      data: new Date().toISOString()
-    });
-    res.json({ success: true, message: "Richiesta inviata all'operatore!" });
-  } catch (err) {
-    res.status(500).json({ success: false, message: "Errore server" });
-  }
 });
 
 // --- STORICI ---

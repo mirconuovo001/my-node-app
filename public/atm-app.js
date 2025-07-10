@@ -410,11 +410,6 @@ document.addEventListener('DOMContentLoaded', () => {
               if (r.nuovoUsername) campi.push(`Nuovo username: <b>${r.nuovoUsername}</b>`);
               if (r.nuovoPin) campi.push(`Nuovo PIN: <b>${r.nuovoPin}</b>`);
               label = `Cambio username/PIN<br>${campi.join('<br>')}`;
-            } else if (r.tipo === 'creazione-nuovo-utente') {
-              label = `Richiesta nuovo utente<br>
-                       Username: <b>${r.usernameRichiesto}</b><br>
-                       PIN: <b>${r.pinRichiesto}</b><br>
-                       Nome: <b>${r.nomeCompleto}</b>`;
             }
             return `<div style="border:1px solid #6ef5c5; margin:8px; padding:8px;">
               <span class="user-color" style="background:${color}">${r.username}</span> 
@@ -633,56 +628,4 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Gestione richiesta nuovo utente - spostata fuori dal dashboard operatore
-  document.getElementById('richiedi-nuovo-utente').onclick = () => {
-    const loginForm = document.getElementById('login-form');
-    const richiediBtn = document.getElementById('richiedi-nuovo-utente');
-
-    loginForm.style.display = 'none';
-    richiediBtn.style.display = 'none';
-
-    appDiv.innerHTML = `
-      <h3>Richiesta creazione nuovo utente</h3>
-      <form id="form-nuovo-utente">
-        <label for="nuovo-username">Username desiderato:</label>
-        <input type="text" id="nuovo-username" required>
-        <label for="nuovo-pin">PIN desiderato:</label>
-        <input type="password" id="nuovo-pin" maxlength="6" required>
-        <label for="nuovo-nome">Nome completo:</label>
-        <input type="text" id="nuovo-nome" required>
-        <button type="submit">Invia richiesta</button>
-        <button type="button" id="annulla-nuovo-utente">Annulla</button>
-      </form>
-      <div id="msg-nuovo-utente"></div>
-    `;
-
-    document.getElementById('form-nuovo-utente').onsubmit = async (e) => {
-      e.preventDefault();
-      const username = document.getElementById('nuovo-username').value.trim();
-      const pin = document.getElementById('nuovo-pin').value.trim();
-      const nome = document.getElementById('nuovo-nome').value.trim();
-
-      try {
-        const res = await fetch('/api/richiesta-nuovo-utente', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, pin, nome })
-        });
-        const data = await res.json();
-        document.getElementById('msg-nuovo-utente').innerText = data.message;
-
-        if (data.success) {
-          setTimeout(() => {
-            location.reload();
-          }, 2000);
-        }
-      } catch (error) {
-        document.getElementById('msg-nuovo-utente').innerText = 'Errore di connessione';
-      }
-    };
-
-    document.getElementById('annulla-nuovo-utente').onclick = () => {
-      location.reload();
-    };
-  };
 });
