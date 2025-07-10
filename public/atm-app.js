@@ -372,28 +372,35 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       document.getElementById('gestisci-prelievi').onclick = async () => {
-        const area = document.getElementById('operatore-area');
-        area.innerHTML = `
-          <h3>Imposta importi disponibili</h3>
-          <form id="importi-form">
-            <label for="importi">Importi separati da virgola (es: 10,20,50,100):</label>
-            <input type="text" id="importi" required value="10,20,50,100" />
-            <button type="submit">Aggiorna</button>
-          </form>
-          <div id="importi-msg"></div>
-        `;
-        document.getElementById('importi-form').onsubmit = async (e) => {
-          e.preventDefault();
-          const importi = document.getElementById('importi').value.split(',').map(x => parseInt(x.trim(), 10)).filter(x => x > 0);
-          const res = await fetch('/api/imposta-importi', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ importiDisponibili: importi })
-          });
-          const data = await res.json();
-          document.getElementById('importi-msg').innerText = data.message;
-        };
-      };
+  const area = document.getElementById('operatore-area');
+  const utentiRes = await fetch('/api/utenti');
+  const utenti = await utentiRes.json();
+  area.innerHTML = `
+    <h3>Imposta importi disponibili per utente</h3>
+    <form id="importi-utente-form">
+      <label for="utenteImporti">Utente:</label>
+      <select id="utenteImporti" required>
+        ${utenti.map(u => `<option value="${u.username}">${u.username}</option>`).join('')}
+      </select>
+      <label for="importi">Importi separati da virgola (es: 10,20,0.01,100):</label>
+      <input type="text" id="importi" required value="10,20,50,100,0.01" />
+      <button type="submit">Aggiorna</button>
+    </form>
+    <div id="importi-msg"></div>
+  `;
+  document.getElementById('importi-utente-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('utenteImporti').value;
+    const importi = document.getElementById('importi').value.split(',').map(x => parseFloat(x.trim())).filter(x => x >= 0);
+    const res = await fetch('/api/imposta-importi-utente', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, importiDisponibili: importi })
+    });
+    const data = await res.json();
+    document.getElementById('importi-msg').innerText = data.message;
+  };
+};
 
       document.getElementById('vedi-richieste').onclick = async () => {
         const area = document.getElementById('operatore-area');
