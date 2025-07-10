@@ -648,8 +648,9 @@ app.post('/api/cambia-profilo-operatore', async (req, res) => {
     });
     res.json({ success: true, message: 'Profilo operatore modificato!' });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Errore server' });
-  }
+  console.error('ERRORE LOGIN:', err); 
+  res.status(500).json({ success: false, message: 'Errore server' });
+}
 });
 
 // --- STARTUP ---
