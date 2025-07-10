@@ -13,7 +13,7 @@ let db;
 async function connectToMongo() {
   if (!db) {
     await client.connect();
-    db = client.db(); // Usa il database di default dalla connection string
+    db = client.db('appdb');
   }
   return db;
 }
@@ -571,9 +571,9 @@ app.post('/api/gestisci-richiesta', async (req, res) => {
     }
     res.json({ success: true, message: approva ? 'Richiesta approvata!' : 'Richiesta rifiutata.' });
   } catch (err) {
-    console.error('Errore gestione richiesta:', err);
-    res.status(500).json({ success: false, message: 'Errore server' });
-  }
+  console.error('ERRORE LOGIN:', err); // così vedi l’errore vero nei log
+  res.status(500).json({ success: false, message: 'Errore server' });
+}
 });
 
 // Richiesta nuovo utente
