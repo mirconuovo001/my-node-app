@@ -649,6 +649,21 @@ app.post('/api/elimina-richiesta', async (req, res) => {
   }
 });
 
+// Elimina richieste multiple (batch)
+app.post('/api/elimina-richieste-multiple', async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.json({ success: false, message: 'Nessuna richiesta selezionata.' });
+  }
+  try {
+    const db = await connectToMongo();
+    const result = await db.collection('richieste').deleteMany({ _id: { $in: ids.map(id => new ObjectId(id)) } });
+    res.json({ success: true, count: result.deletedCount });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Modifica richiesta (operatore o utente)
 app.post('/api/modifica-richiesta', async (req, res) => {
   try {
