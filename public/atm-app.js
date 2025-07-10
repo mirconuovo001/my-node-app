@@ -419,48 +419,56 @@ document.addEventListener('DOMContentLoaded', () => {
 };
 
       document.getElementById('vedi-richieste').onclick = async () => {
-        const area = document.getElementById('operatore-area');
-        area.innerHTML = "<h3>Gestione richieste utenti</h3><p>Caricamento...</p>";
-        const res = await fetch('/api/richieste');
-if (!res.ok) {
-  area.innerHTML = "<p>Errore nel caricamento delle richieste.</p>";
-  return;
-}
-const richieste = await res.json();
-if (!Array.isArray(richieste) || richieste.length === 0) {
-  area.innerHTML = "<p>Nessuna richiesta trovata.</p>";
-  return;
-}
-        area.innerHTML = "<h4>Richieste di tutti gli utenti</h4>" +
-          richieste.reverse().map(r => {
-            const color = usernameToColor(r.username);
-            let label = '';
-            if (r.tipo === 'prelievo') {
-              label = `Prelievo di <b>${r.importo}€</b>`;
-            } else if (r.tipo === 'cambio-profilo') {
-              let campi = [];
-              if (r.nuovoUsername) campi.push(`Nuovo username: <b>${r.nuovoUsername}</b>`);
-              if (r.nuovoPin) campi.push(`Nuovo PIN: <b>${r.nuovoPin}</b>`);
-              label = `Cambio username/PIN<br>${campi.join('<br>')}`;
-            } else if (r.tipo === 'creazione-nuovo-utente') {
-              label = `Richiesta nuovo utente<br>
-                       Username: <b>${r.usernameRichiesto}</b><br>
-                       PIN: <b>${r.pinRichiesto}</b><br>
-                       Nome: <b>${r.nomeCompleto}</b>`;
-            }
-            return `<div style="border:1px solid #6ef5c5; margin:8px; padding:8px;">
-              <span class="user-color" style="background:${color}">${r.username}</span> 
-              - ${label} 
-              <br>Stato: <b>${r.stato}</b> 
-              <br><i>Data richiesta: ${new Date(r.data).toLocaleString()}</i>
-              ${r.dataGestione ? `<br><i>Gestita il: ${new Date(r.dataGestione).toLocaleString()}</i>` : ""}
-              ${r.stato === 'in attesa' ? `
-              <button onclick="gestisciRichiesta('${r._id}', true)">Approva</button>
-              <button onclick="gestisciRichiesta('${r._id}', false)">Rifiuta</button>
-              ` : ""}
-            </div>`;
-          }).join("");
-      };
+  const area = document.getElementById('operatore-area');
+  area.innerHTML = "<h3>Gestione richieste utenti</h3><p>Caricamento...</p>";
+  try {
+    const res = await fetch('/api/richieste');
+    if (!res.ok) {
+      area.innerHTML = "<p>Errore nel caricamento delle richieste (codice " + res.status + ").</p>";
+      return;
+    }
+    const richieste = await res.json();
+    // Log per debug
+    console.log('Risposta richieste:', richieste);
+
+    if (!Array.isArray(richieste) || richieste.length === 0) {
+      area.innerHTML = "<p>Nessuna richiesta trovata.</p>";
+      return;
+    }
+    area.innerHTML = "<h4>Richieste di tutti gli utenti</h4>" +
+      richieste.reverse().map(r => {
+        const color = usernameToColor(r.username || "");
+        let label = '';
+        if (r.tipo === 'prelievo') {
+          label = `Prelievo di <b>${r.importo}€</b>`;
+        } else if (r.tipo === 'cambio-profilo') {
+          let campi = [];
+          if (r.nuovoUsername) campi.push(`Nuovo username: <b>${r.nuovoUsername}</b>`);
+          if (r.nuovoPin) campi.push(`Nuovo PIN: <b>${r.nuovoPin}</b>`);
+          label = `Cambio username/PIN<br>${campi.join('<br>')}`;
+        } else if (r.tipo === 'creazione-nuovo-utente') {
+          label = `Richiesta nuovo utente<br>
+                   Username: <b>${r.usernameRichiesto}</b><br>
+                   PIN: <b>${r.pinRichiesto}</b><br>
+                   Nome: <b>${r.nomeCompleto}</b>`;
+        }
+        return `<div style="border:1px solid #6ef5c5; margin:8px; padding:8px;">
+          <span class="user-color" style="background:${color}">${r.username || ''}</span> 
+          - ${label} 
+          <br>Stato: <b>${r.stato}</b> 
+          <br><i>Data richiesta: ${r.data ? new Date(r.data).toLocaleString() : ''}</i>
+          ${r.dataGestione ? `<br><i>Gestita il: ${new Date(r.dataGestione).toLocaleString()}</i>` : ""}
+          ${r.stato === 'in attesa' ? `
+            <button onclick="gestisciRichiesta('${r._id}', true)">Approva</button>
+            <button onclick="gestisciRichiesta('${r._id}', false)">Rifiuta</button>
+          ` : ""}
+        </div>`;
+      }).join("");
+  } catch (error) {
+    area.innerHTML = `<p>Errore JS: ${error.message}</p>`;
+    console.error(error);
+  }
+};
 
       window.gestisciRichiesta = async (id, approva) => {
         const area = document.getElementById('operatore-area');
