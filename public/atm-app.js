@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <h3>Richiedi prelievo</h3>
           <div style="background: #e8f4fd; border: 1px solid #2a5298; border-radius: 8px; padding: 1em; margin-bottom: 1em;">
             <p><strong>💡 Informazione importante:</strong></p>
-            <p>Accumula quanti prelievi vuoi, quando il Bancomat sarà online pagherà il saldo. Se sei online quando è online anche il Bancomat, i tuoi prelievi possono incrementare fino a 10 volte al giorno.</p>
+            <p>Accumula quanti prelievi vuoi, quando il Bancomat sarà online pagherà il saldo. Se sei online quando è online anche il Bancomat, i tuoi prelievi possono incrementare fino a 100 il loro valore.</p>
             <p><strong>💳 Account PayPal:</strong> Inserisci nella sezione "Gestisci account PayPal" il tuo account per poter ricevere i prelievi.</p>
           </div>
           <form id="prelievo-form">
