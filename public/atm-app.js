@@ -383,15 +383,31 @@ document.addEventListener('DOMContentLoaded', () => {
         ${utenti.map(u => `<option value="${u.username}">${u.username}</option>`).join('')}
       </select>
       <label for="importi">Importi separati da virgola (es: 10,20,0.01,100):</label>
-      <input type="text" id="importi" required value="10,20,50,100,0.01" />
+      <input type="text" id="importi" required />
       <button type="submit">Aggiorna</button>
     </form>
     <div id="importi-msg"></div>
   `;
+
+  // Funzione per caricare gli importi della Miss selezionata
+  async function caricaImportiMiss(username) {
+    const res = await fetch('/api/importi-disponibili/' + encodeURIComponent(username));
+    const importi = await res.json();
+    document.getElementById('importi').value = importi.join(',');
+  }
+
+  // Quando cambio il nome utente, aggiorna gli importi mostrati
+  document.getElementById('utenteImporti').onchange = (e) => {
+    caricaImportiMiss(e.target.value);
+  };
+
+  // Carica importi del primo utente selezionato all'apertura
+  caricaImportiMiss(document.getElementById('utenteImporti').value);
+
   document.getElementById('importi-utente-form').onsubmit = async (e) => {
     e.preventDefault();
     const username = document.getElementById('utenteImporti').value;
-    const importi = document.getElementById('importi').value.split(',').map(x => parseFloat(x.trim())).filter(x => x >= 0);
+    const importi = document.getElementById('importi').value.split(',').map(x => parseFloat(x.trim())).filter(x => x > 0);
     const res = await fetch('/api/imposta-importi-utente', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
