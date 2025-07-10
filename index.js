@@ -70,6 +70,7 @@ app.post('/api/login', async (req, res) => {
       res.json({ success: false, message: 'Credenziali errate' });
     }
   } catch (err) {
+    console.error('ERRORE LOGIN:', err);
     res.status(500).json({ success: false, message: 'Errore server' });
   }
 });
