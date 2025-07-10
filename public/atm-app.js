@@ -422,11 +422,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const area = document.getElementById('operatore-area');
         area.innerHTML = "<h3>Gestione richieste utenti</h3><p>Caricamento...</p>";
         const res = await fetch('/api/richieste');
-        const richieste = await res.json();
-        if (!richieste.length) {
-          area.innerHTML = "<p>Nessuna richiesta trovata.</p>";
-          return;
-        }
+if (!res.ok) {
+  area.innerHTML = "<p>Errore nel caricamento delle richieste.</p>";
+  return;
+}
+const richieste = await res.json();
+if (!Array.isArray(richieste) || richieste.length === 0) {
+  area.innerHTML = "<p>Nessuna richiesta trovata.</p>";
+  return;
+}
         area.innerHTML = "<h4>Richieste di tutti gli utenti</h4>" +
           richieste.reverse().map(r => {
             const color = usernameToColor(r.username);
@@ -451,8 +455,8 @@ document.addEventListener('DOMContentLoaded', () => {
               <br><i>Data richiesta: ${new Date(r.data).toLocaleString()}</i>
               ${r.dataGestione ? `<br><i>Gestita il: ${new Date(r.dataGestione).toLocaleString()}</i>` : ""}
               ${r.stato === 'in attesa' ? `
-                <button onclick="gestisciRichiesta(${r.id}, true)">Approva</button>
-                <button onclick="gestisciRichiesta(${r.id}, false)">Rifiuta</button>
+              <button onclick="gestisciRichiesta('${r._id}', true)">Approva</button>
+              <button onclick="gestisciRichiesta('${r._id}', false)">Rifiuta</button>
               ` : ""}
             </div>`;
           }).join("");
