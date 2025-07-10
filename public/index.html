@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Servizio di Bancomat Umano</title>
+  <link rel="stylesheet" href="atm-style.css">
+</head>
+<body>
+  <div class="atm-panel">
+    <h1>Servizio di Bancomat Umano</h1>
+    <form id="login-form">
+      <label for="role">Ruolo:</label>
+      <select id="role">
+        <option value="miss">Account Prelievi</option>
+        <option value="operatore">Bancomat Umano</option>
+      </select>
+      <label for="username">Nome utente:</label>
+      <input type="text" id="username" required>
+      <label for="pin">PIN:</label>
+      <input type="password" id="pin" required maxlength="6">
+      <button type="submit">Accedi</button>
+    </form>
+    <button id="richiedi-nuovo-utente" type="button">Richiedi nuovo utente</button>
+    <div id="app"></div>
+  </div>
+  <script src="atm-app.js"></script>
+</body>
+</html>

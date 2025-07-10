@@ -1,0 +1,65 @@
+body {
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+  color: #222;
+  font-family: 'Roboto', 'Segoe UI', Arial, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+}
+.atm-panel {
+  background: rgba(255,255,255,0.94);
+  border-radius: 16px;
+  padding: 2.5rem 2rem 1.5rem 2rem;
+  max-width: 480px;
+  margin: 3.5rem auto;
+  box-shadow: 0 0 32px 0 #2a529855;
+  border-top: 6px solid #2a5298;
+  border-bottom: 6px solid #1e3c72;
+}
+input, select, button {
+  font-size: 1.1em;
+  margin: 0.5em 0;
+  padding: 0.6em;
+  width: 100%;
+  border-radius: 7px;
+  border: 2px solid #2a5298;
+  background: #f4f8fc;
+  color: #1e3c72;
+  transition: border 0.2s, background 0.2s;
+}
+input:focus, select:focus {
+  border: 2px solid #1e3c72;
+  outline: none;
+  background: #e3eefc;
+}
+button {
+  background: linear-gradient(90deg, #1e3c72 0%, #2a5298 100%);
+  color: #fff;
+  font-weight: bold;
+  cursor: pointer;
+  border: none;
+  margin-top: 1em;
+  transition: background 0.2s, color 0.2s;
+}
+button:hover {
+  background: linear-gradient(90deg, #2a5298 0%, #1e3c72 100%);
+  color: #c6eaff;
+}
+h1 { text-align: center; color: #1e3c72;}
+h2 { color: #2a5298; margin-bottom: 1.3rem;}
+ul { list-style: none; padding-left: 0; margin-bottom: 1.5em;}
+ul li { margin: 0.4em 0; }
+div[id$="-area"] > div, .user-color {
+  background: #e3eefc;
+  border-radius: 8px;
+  margin-bottom: 1em;
+  padding: 1em;
+  border-left: 6px solid #2a5298;
+}
+.user-color {
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: #fff;
+  display: inline-block;
+}
+label { font-weight: 500; margin-bottom: 0.2em; display: block;}
