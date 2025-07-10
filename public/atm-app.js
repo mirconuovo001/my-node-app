@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (data.success) {
       form.style.display = 'none';
+      document.getElementById('richiedi-nuovo-utente').style.display = 'none';
       session = { role: data.role, username: data.username };
       renderDashboard();
     } else {
@@ -63,6 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <li><button id="richiedi-cambio-profilo">Richiedi cambio username/PIN</button></li>
           <li><button id="gestisci-paypal">Gestisci account PayPal</button></li>
           <li><button id="chat-operatore">💬 Chat con Bancomat</button></li>
+          <li><button onclick="location.reload()" style="background-color: #dc3545; color: white;">🚪 Esci</button></li>
         </ul>
         <div id="miss-area"></div>
       `;
@@ -280,6 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <li><button id="vedi-statistiche">Statistiche e utenti online</button></li>
           <li><button id="gestisci-messaggi">💬 Gestisci messaggi utenti</button></li>
           <li><button id="modifica-profilo-operatore">Cambia il tuo username/PIN</button></li>
+          <li><button onclick="location.reload()" style="background-color: #dc3545; color: white;">🚪 Esci</button></li>
         </ul>
         <div id="operatore-area"></div>
       `;
