@@ -505,19 +505,44 @@ document.getElementById('filtro-archivio-chat').onclick = () => { filtro = 'arch
 
 area.innerHTML = `
   <h4>Filtra richieste:</h4>
-  <button id="filtro-tutte">Tutte</button>
-  <button id="filtro-attesa">Solo in attesa</button>
-  <button id="filtro-archiviate">Solo archiviate</button>
+  <label>Tipo: 
+  <select id="filtro-tipo">
+    <option value="">Tutte</option>
+    <option value="prelievo">Prelievo</option>
+    <option value="cambio-profilo">Cambio username/PIN</option>
+    <option value="creazione-nuovo-utente">Nuovo utente</option>
+  </select>
+</label>
+<label>Stato:
+  <select id="filtro-stato">
+    <option value="">Tutti</option>
+    <option value="in attesa">In attesa</option>
+    <option value="archiviata">Archiviata</option>
+  </select>
+</label>
+<label>Utente:
+  <input type="text" id="filtro-utente" placeholder="Username">
+</label>
+<button id="applica-filtri">Applica filtri</button>
   <div id="richieste-list"></div>
 `;
 
 function renderRichieste() {
   let richiesteFiltrate = richieste;
-  if (filtro === 'attesa') {
-    richiesteFiltrate = richieste.filter(r => r.stato === 'in attesa');
-  } else if (filtro === 'archiviate') {
-    richiesteFiltrate = richieste.filter(r => r.stato !== 'in attesa');
+
+  // Prendi i valori selezionati nei filtri
+  const tipo = document.getElementById('filtro-tipo').value;
+  const stato = document.getElementById('filtro-stato').value;
+  const utente = document.getElementById('filtro-utente').value.trim();
+
+  // Applica i filtri
+  if (tipo) richiesteFiltrate = richiesteFiltrate.filter(r => r.tipo === tipo);
+  if (stato) {
+    if (stato === 'in attesa') richiesteFiltrate = richiesteFiltrate.filter(r => r.stato === 'in attesa');
+    else richiesteFiltrate = richiesteFiltrate.filter(r => r.stato !== 'in attesa');
   }
+  if (utente) richiesteFiltrate = richiesteFiltrate.filter(r => (r.username || '').toLowerCase().includes(utente.toLowerCase()));
+
   document.getElementById('richieste-list').innerHTML =
     (richiesteFiltrate.length === 0)
       ? "<p>Nessuna richiesta trovata.</p>"
@@ -557,6 +582,7 @@ function renderRichieste() {
 }
 
 renderRichieste();
+document.getElementById('applica-filtri').onclick = () => { renderRichieste(); };
 
 document.getElementById('filtro-tutte').onclick = () => { filtro = 'tutte'; renderRichieste(); };
 document.getElementById('filtro-attesa').onclick = () => { filtro = 'attesa'; renderRichieste(); };
@@ -647,12 +673,13 @@ window.modificaRichiesta = async (id, notaAttuale) => {
           data.storico.reverse().map(op => {
             const color = usernameToColor(op.username||'');
             return `<div style="border:1px solid #6ef5c5; margin:8px; padding:8px;">
-              <span class="user-color" style="background:${color}">${op.username||''}</span>
-              <b>${op.tipo.replace(/-/g, ' ')}</b> 
-              ${op.importo ? op.importo + '€' : ''} 
-              <br><i>${new Date(op.data).toLocaleString()}</i> 
-              ${op.note ? `<br><span>${op.note}</span>` : ""}
-            </div>`;
+  <span class="user-color" style="background:${color}">${op.username||''}</span>
+  <b>${op.tipo.replace(/-/g, ' ')}</b> 
+  ${op.importo ? op.importo + '€' : ''} 
+  <br><i>${new Date(op.data).toLocaleString()}</i> 
+  ${op.note ? `<br><span>${op.note}</span>` : ""}
+  ${(session.role === 'operatore') ? `<button onclick="eliminaOperazioneStorico('${op._id}')">Elimina</button>` : ''}
+</div>`;
           }).join("");
       };
 
@@ -805,6 +832,17 @@ window.modificaRichiesta = async (id, notaAttuale) => {
     const title = document.querySelector('#operatore-area h3');
     const username = title ? title.textContent.replace('💬 Chat con ', '') : '';
     if (username) window.apriConversazione(username);
+  }
+};
+
+      window.eliminaOperazioneStorico = async (id) => {
+  if (confirm('Vuoi eliminare questa operazione dallo storico?')) {
+    await fetch('/api/elimina-operazione-storico', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    document.getElementById('vedi-storico-op').click();
   }
 };
 
