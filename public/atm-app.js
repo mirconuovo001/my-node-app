@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('richiedi-prelievo').onclick = async () => {
         const area = document.getElementById('miss-area');
         area.innerHTML = "<h3>Richiedi prelievo</h3><p>Caricamento importi disponibili...</p>";
-        const res = await fetch('/api/importi-disponibili');
+        const res = await fetch('/api/importi-disponibili/' + encodeURIComponent(session.username));
         const importi = await res.json();
         area.innerHTML = `
           <h3>Richiedi prelievo</h3>
