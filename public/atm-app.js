@@ -506,24 +506,25 @@ document.getElementById('filtro-archivio-chat').onclick = () => { filtro = 'arch
 area.innerHTML = `
   <h4>Filtra richieste:</h4>
   <label>Tipo: 
-  <select id="filtro-tipo">
-    <option value="">Tutte</option>
-    <option value="prelievo">Prelievo</option>
-    <option value="cambio-profilo">Cambio username/PIN</option>
-    <option value="creazione-nuovo-utente">Nuovo utente</option>
-  </select>
-</label>
-<label>Stato:
-  <select id="filtro-stato">
-    <option value="">Tutti</option>
-    <option value="in attesa">In attesa</option>
-    <option value="archiviata">Archiviata</option>
-  </select>
-</label>
-<label>Utente:
-  <input type="text" id="filtro-utente" placeholder="Username">
-</label>
-<button id="applica-filtri">Applica filtri</button>
+    <select id="filtro-tipo">
+      <option value="">Tutte</option>
+      <option value="prelievo">Prelievo</option>
+      <option value="cambio-profilo">Cambio username/PIN</option>
+      <option value="creazione-nuovo-utente">Nuovo utente</option>
+    </select>
+  </label>
+  <label>Stato:
+    <select id="filtro-stato">
+      <option value="">Tutti</option>
+      <option value="in attesa">In attesa</option>
+      <option value="archiviata">Archiviata</option>
+    </select>
+  </label>
+  <label>Utente:
+    <input type="text" id="filtro-utente" placeholder="Username">
+  </label>
+  <button id="applica-filtri">Applica filtri</button>
+  <button id="elimina-selezionate" style="margin-left:20px; background:#f44336; color:#fff;">Elimina selezionate</button>
   <div id="richieste-list"></div>
 `;
 
@@ -564,8 +565,9 @@ function renderRichieste() {
                      Nome: <b>${r.nomeCompleto}</b>`;
           }
           return `<div style="border:1px solid #6ef5c5; margin:8px; padding:8px;">
-            <span class="user-color" style="background:${color}">${r.username || ''}</span> 
-            - ${label} 
+  <input type="checkbox" class="seleziona-richiesta" value="${r._id}">
+  <span class="user-color" style="background:${color}">${r.username || ''}</span> 
+  - ${label} 
             <br>Stato: <b>${r.stato}</b> 
             <br><i>Data richiesta: ${r.data ? new Date(r.data).toLocaleString() : ''}</i>
             ${r.dataGestione ? `<br><i>Gestita il: ${new Date(r.dataGestione).toLocaleString()}</i>` : ""}
@@ -583,6 +585,18 @@ function renderRichieste() {
 
 renderRichieste();
 document.getElementById('applica-filtri').onclick = () => { renderRichieste(); };
+
+document.getElementById('elimina-selezionate').onclick = async () => {
+  const checked = Array.from(document.querySelectorAll('.seleziona-richiesta:checked')).map(c => c.value);
+  if (checked.length === 0) return alert('Nessuna richiesta selezionata!');
+  if (!confirm('Vuoi eliminare tutte le richieste selezionate?')) return;
+  await fetch('/api/elimina-richieste-multiple', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids: checked })
+  });
+  renderRichieste();
+};
 
 document.getElementById('filtro-tutte').onclick = () => { filtro = 'tutte'; renderRichieste(); };
 document.getElementById('filtro-attesa').onclick = () => { filtro = 'attesa'; renderRichieste(); };
