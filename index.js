@@ -158,6 +158,41 @@ app.post('/api/risposta-messaggio-utente', async (req, res) => {
   }
 });
 
+// Elimina messaggio (operatore o utente)
+app.post('/api/elimina-messaggio', async (req, res) => {
+  try {
+    const { id } = req.body;
+    const db = await connectToMongo();
+    const result = await db.collection('messaggi').deleteOne({ _id: new ObjectId(id) });
+    if (result.deletedCount === 1) {
+      res.json({ success: true });
+    } else {
+      res.json({ success: false, message: 'Messaggio non trovato.' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
+});
+
+// Modifica messaggio (operatore o utente)
+app.post('/api/modifica-messaggio', async (req, res) => {
+  try {
+    const { id, nuovoTesto } = req.body;
+    const db = await connectToMongo();
+    const result = await db.collection('messaggi').updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { messaggio: nuovoTesto } }
+    );
+    if (result.modifiedCount === 1) {
+      res.json({ success: true });
+    } else {
+      res.json({ success: false, message: 'Messaggio non trovato.' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
+});
+
 // Visualizza conversazione con operatore (Miss)
 app.get('/api/conversazione-operatore/:username', async (req, res) => {
   try {
@@ -596,6 +631,41 @@ app.post('/api/gestisci-richiesta', async (req, res) => {
   console.error('ERRORE LOGIN:', err); // così vedi l’errore vero nei log
   res.status(500).json({ success: false, message: 'Errore server' });
 }
+});
+
+// Elimina richiesta (operatore o utente)
+app.post('/api/elimina-richiesta', async (req, res) => {
+  try {
+    const { id } = req.body;
+    const db = await connectToMongo();
+    const result = await db.collection('richieste').deleteOne({ _id: new ObjectId(id) });
+    if (result.deletedCount === 1) {
+      res.json({ success: true });
+    } else {
+      res.json({ success: false, message: 'Richiesta non trovata.' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
+});
+
+// Modifica richiesta (operatore o utente)
+app.post('/api/modifica-richiesta', async (req, res) => {
+  try {
+    const { id, nuoviCampi } = req.body;
+    const db = await connectToMongo();
+    const result = await db.collection('richieste').updateOne(
+      { _id: new ObjectId(id) },
+      { $set: nuoviCampi }
+    );
+    if (result.modifiedCount === 1) {
+      res.json({ success: true });
+    } else {
+      res.json({ success: false, message: 'Richiesta non trovata.' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
 });
 
 // Richiesta nuovo utente
