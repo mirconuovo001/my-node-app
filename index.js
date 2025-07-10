@@ -40,8 +40,42 @@ let demoData = {
       importiDisponibili: [5, 15, 25, 50]
     }
   ],
-  messaggi: [],
-  richieste: []
+  messaggi: [
+    {
+      _id: 'msg1',
+      mittente: 'user1',
+      destinatario: 'operatore',
+      messaggio: 'Ciao, ho un problema con il mio account',
+      data: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+      letto: false
+    },
+    {
+      _id: 'msg2',
+      mittente: 'operatore',
+      destinatario: 'user1',
+      messaggio: 'Ciao! Dimmi pure quale problema hai',
+      data: new Date(Date.now() - 43200000).toISOString(), // 12 hours ago
+      letto: true
+    }
+  ],
+  richieste: [
+    {
+      _id: 'req1',
+      username: 'user1',
+      importo: 50,
+      stato: 'in attesa',
+      data: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+      tipo: 'prelievo'
+    },
+    {
+      _id: 'req2',
+      username: 'user2',
+      nuovoUsername: 'newuser2',
+      stato: 'in attesa',
+      data: new Date(Date.now() - 1800000).toISOString(), // 30 min ago
+      tipo: 'cambio-profilo'
+    }
+  ]
 };
 
 let useDemo = false;
@@ -77,18 +111,26 @@ function createDemoDb() {
       find: (query = {}) => ({
         toArray: async () => {
           const items = demoData[name] || [];
+          if (query.$or) {
+            return items.filter(item => 
+              query.$or.some(condition => 
+                Object.keys(condition).every(condKey => item[condKey] === condition[condKey])
+              )
+            );
+          }
           return items.filter(item => {
-            return Object.keys(query).every(key => {
-              if (query[key] && query[key].$or) {
-                return query[key].$or.some(condition => 
-                  Object.keys(condition).every(condKey => item[condKey] === condition[condKey])
-                );
-              }
-              return item[key] === query[key];
-            });
+            return Object.keys(query).every(key => item[key] === query[key]);
           });
         },
-        sort: () => ({ toArray: async () => demoData[name] || [] })
+        sort: (sortOptions) => ({ 
+          toArray: async () => {
+            const items = demoData[name] || [];
+            if (sortOptions && sortOptions.data) {
+              return [...items].sort((a, b) => new Date(a.data) - new Date(b.data));
+            }
+            return items;
+          }
+        })
       }),
       insertOne: async (doc) => {
         const items = demoData[name] || [];
@@ -117,6 +159,40 @@ function createDemoDb() {
           }
         }
         return { modifiedCount: item ? 1 : 0 };
+      },
+      updateMany: async (query, update) => {
+        const items = demoData[name] || [];
+        let modifiedCount = 0;
+        items.forEach(item => {
+          if (Object.keys(query).every(key => item[key] === query[key])) {
+            if (update.$set) Object.assign(item, update.$set);
+            if (update.$push) {
+              Object.keys(update.$push).forEach(key => {
+                if (!item[key]) item[key] = [];
+                item[key].push(update.$push[key]);
+              });
+            }
+            if (update.$inc) {
+              Object.keys(update.$inc).forEach(key => {
+                item[key] = (item[key] || 0) + update.$inc[key];
+              });
+            }
+            modifiedCount++;
+          }
+        });
+        return { modifiedCount };
+      },
+      deleteOne: async (query) => {
+        const items = demoData[name] || [];
+        const index = items.findIndex(item => 
+          Object.keys(query).every(key => item[key] === query[key])
+        );
+        if (index !== -1) {
+          items.splice(index, 1);
+          demoData[name] = items;
+          return { deletedCount: 1 };
+        }
+        return { deletedCount: 0 };
       },
       aggregate: () => ({
         toArray: async () => []
@@ -696,6 +772,82 @@ app.post('/api/gestisci-richiesta', async (req, res) => {
   console.error('ERRORE LOGIN:', err); // così vedi l’errore vero nei log
   res.status(500).json({ success: false, message: 'Errore server' });
 }
+});
+
+// Modifica messaggio (Operatore)
+app.post('/api/modifica-messaggio', async (req, res) => {
+  try {
+    const { id, nuovoMessaggio } = req.body;
+    if (!id || !nuovoMessaggio?.trim()) {
+      return res.json({ success: false, message: 'Dati non validi' });
+    }
+    const db = await connectToMongo();
+    const result = await db.collection('messaggi').updateOne(
+      { _id: id },
+      { $set: { messaggio: nuovoMessaggio.trim(), modificato: true, dataModifica: new Date().toISOString() } }
+    );
+    if (result.modifiedCount > 0) {
+      res.json({ success: true, message: 'Messaggio modificato!' });
+    } else {
+      res.json({ success: false, message: 'Messaggio non trovato' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
+});
+
+// Elimina messaggio (Operatore)
+app.delete('/api/elimina-messaggio/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = await connectToMongo();
+    const result = await db.collection('messaggi').deleteOne({ _id: id });
+    if (result.deletedCount > 0) {
+      res.json({ success: true, message: 'Messaggio eliminato!' });
+    } else {
+      res.json({ success: false, message: 'Messaggio non trovato' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
+});
+
+// Modifica richiesta (Operatore)
+app.post('/api/modifica-richiesta', async (req, res) => {
+  try {
+    const { id, nuoviDati } = req.body;
+    if (!id || !nuoviDati) {
+      return res.json({ success: false, message: 'Dati non validi' });
+    }
+    const db = await connectToMongo();
+    const result = await db.collection('richieste').updateOne(
+      { _id: id },
+      { $set: { ...nuoviDati, modificato: true, dataModifica: new Date().toISOString() } }
+    );
+    if (result.modifiedCount > 0) {
+      res.json({ success: true, message: 'Richiesta modificata!' });
+    } else {
+      res.json({ success: false, message: 'Richiesta non trovata' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
+});
+
+// Elimina richiesta (Operatore)
+app.delete('/api/elimina-richiesta/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = await connectToMongo();
+    const result = await db.collection('richieste').deleteOne({ _id: id });
+    if (result.deletedCount > 0) {
+      res.json({ success: true, message: 'Richiesta eliminata!' });
+    } else {
+      res.json({ success: false, message: 'Richiesta non trovata' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
 });
 
 // --- STORICI ---

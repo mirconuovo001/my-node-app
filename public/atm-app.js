@@ -467,10 +467,15 @@ document.addEventListener('DOMContentLoaded', () => {
               <br>Stato: <b>${r.stato}</b> 
               <br><i>Data richiesta: ${new Date(r.data).toLocaleString()}</i>
               ${r.dataGestione ? `<br><i>Gestita il: ${new Date(r.dataGestione).toLocaleString()}</i>` : ""}
-              ${r.stato === 'in attesa' ? `
-                <button onclick="gestisciRichiesta(${r.id}, true)">Approva</button>
-                <button onclick="gestisciRichiesta(${r.id}, false)">Rifiuta</button>
-              ` : ""}
+              ${r.modificato ? `<br><em style="color: #666;">Modificata il: ${new Date(r.dataModifica).toLocaleString()}</em>` : ""}
+              <div style="margin-top: 8px;">
+                ${r.stato === 'in attesa' ? `
+                  <button onclick="gestisciRichiesta('${r._id}', true)">Approva</button>
+                  <button onclick="gestisciRichiesta('${r._id}', false)">Rifiuta</button>
+                ` : ""}
+                <button onclick="modificaRichiesta('${r._id}', '${r.tipo}')">✏️ Modifica</button>
+                <button onclick="eliminaRichiesta('${r._id}')">🗑️ Elimina</button>
+              </div>
             </div>`;
           }).join("");
       };
@@ -485,6 +490,61 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await res.json();
         alert(data.message);
         document.getElementById('vedi-richieste').click();
+      };
+
+      window.modificaRichiesta = async (id, tipo) => {
+        let nuoviDati = {};
+        
+        if (tipo === 'prelievo') {
+          const nuovoImporto = prompt('Modifica importo:');
+          if (nuovoImporto && !isNaN(nuovoImporto)) {
+            nuoviDati.importo = parseFloat(nuovoImporto);
+          } else {
+            return;
+          }
+        } else if (tipo === 'cambio-profilo') {
+          const nuovoUsername = prompt('Nuovo username (lascia vuoto per non cambiare):');
+          const nuovoPin = prompt('Nuovo PIN (lascia vuoto per non cambiare):');
+          if (nuovoUsername) nuoviDati.nuovoUsername = nuovoUsername;
+          if (nuovoPin) nuoviDati.nuovoPin = nuovoPin;
+          if (!nuovoUsername && !nuovoPin) return;
+        }
+
+        try {
+          const res = await fetch('/api/modifica-richiesta', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, nuoviDati })
+          });
+          const data = await res.json();
+          if (data.success) {
+            alert('Richiesta modificata!');
+            document.getElementById('vedi-richieste').click();
+          } else {
+            alert('Errore: ' + data.message);
+          }
+        } catch (err) {
+          alert('Errore di connessione');
+        }
+      };
+
+      window.eliminaRichiesta = async (id) => {
+        if (confirm('Sei sicuro di voler eliminare questa richiesta?')) {
+          try {
+            const res = await fetch('/api/elimina-richiesta/' + id, {
+              method: 'DELETE'
+            });
+            const data = await res.json();
+            if (data.success) {
+              alert('Richiesta eliminata!');
+              document.getElementById('vedi-richieste').click();
+            } else {
+              alert('Errore: ' + data.message);
+            }
+          } catch (err) {
+            alert('Errore di connessione');
+          }
+        }
       };
 
       document.getElementById('modifica-saldo').onclick = async () => {
@@ -630,14 +690,23 @@ document.addEventListener('DOMContentLoaded', () => {
           const stile = isOperatore ? 
             'background: #e8f5e8; border-left: 4px solid #4caf50; text-align: right;' : 
             'background: #fff3e0; border-left: 4px solid #ff9800; text-align: left;';
+          
+          const modificatoText = msg.modificato ? '<em style="color: #666;"> (modificato)</em>' : '';
+          
           return `
-            <div style="${stile} padding: 8px; margin: 8px 0; border-radius: 8px;">
+            <div style="${stile} padding: 8px; margin: 8px 0; border-radius: 8px; position: relative;">
               <div style="font-weight: bold; color: ${isOperatore ? '#4caf50' : '#ff9800'};">
                 ${isOperatore ? 'Tu (Bancomat)' : username}
               </div>
-              <div style="margin: 4px 0;">${msg.messaggio}</div>
+              <div style="margin: 4px 0;" id="msg-content-${msg._id}">${msg.messaggio}${modificatoText}</div>
               <div style="font-size: 0.8em; color: #666;">
                 ${new Date(msg.data).toLocaleString()}
+              </div>
+              <div style="position: absolute; top: 5px; right: 5px;">
+                <button onclick="modificaMessaggio('${msg._id}', '${msg.messaggio.replace(/'/g, "\\'")}', '${username}')" 
+                        style="font-size: 0.7em; padding: 2px 5px; margin: 0 2px; background: #2196f3; color: white; border: none; border-radius: 3px; cursor: pointer;">✏️</button>
+                <button onclick="eliminaMessaggio('${msg._id}', '${username}')" 
+                        style="font-size: 0.7em; padding: 2px 5px; margin: 0 2px; background: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer;">🗑️</button>
               </div>
             </div>
           `;
@@ -673,6 +742,47 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => apriConversazione(username), 1000);
           }
         };
+      };
+
+      window.modificaMessaggio = async (id, messaggioCorrente, username) => {
+        const nuovoMessaggio = prompt('Modifica il messaggio:', messaggioCorrente);
+        if (nuovoMessaggio && nuovoMessaggio.trim() !== messaggioCorrente) {
+          try {
+            const res = await fetch('/api/modifica-messaggio', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id, nuovoMessaggio: nuovoMessaggio.trim() })
+            });
+            const data = await res.json();
+            if (data.success) {
+              alert('Messaggio modificato!');
+              apriConversazione(username);
+            } else {
+              alert('Errore: ' + data.message);
+            }
+          } catch (err) {
+            alert('Errore di connessione');
+          }
+        }
+      };
+
+      window.eliminaMessaggio = async (id, username) => {
+        if (confirm('Sei sicuro di voler eliminare questo messaggio?')) {
+          try {
+            const res = await fetch('/api/elimina-messaggio/' + id, {
+              method: 'DELETE'
+            });
+            const data = await res.json();
+            if (data.success) {
+              alert('Messaggio eliminato!');
+              apriConversazione(username);
+            } else {
+              alert('Errore: ' + data.message);
+            }
+          } catch (err) {
+            alert('Errore di connessione');
+          }
+        }
       };
 
     }
