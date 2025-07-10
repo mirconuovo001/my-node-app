@@ -70,8 +70,11 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('richiedi-prelievo').onclick = async () => {
         const area = document.getElementById('miss-area');
         area.innerHTML = "<h3>Richiedi prelievo</h3><p>Caricamento importi disponibili...</p>";
-        const res = await fetch('/api/importi-disponibili');
+        
+        // Request user-specific withdrawal options
+        const res = await fetch(`/api/importi-disponibili?username=${encodeURIComponent(session.username)}`);
         const importi = await res.json();
+        
         area.innerHTML = `
           <h3>Richiedi prelievo</h3>
           <div style="background: #e8f4fd; border: 1px solid #2a5298; border-radius: 8px; padding: 1em; margin-bottom: 1em;">
@@ -88,9 +91,10 @@ document.addEventListener('DOMContentLoaded', () => {
           </form>
           <div id="prelievo-msg"></div>
         `;
+        
         document.getElementById('prelievo-form').onsubmit = async (e) => {
           e.preventDefault();
-          const importo = parseInt(document.getElementById('importo').value, 10);
+          const importo = parseFloat(document.getElementById('importo').value);
           const res = await fetch('/api/richiesta-prelievo', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -274,6 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <ul>
           <li><button id="gestisci-utenti">Crea/Modifica utente</button></li>
           <li><button id="gestisci-prelievi">Imposta importi disponibili</button></li>
+          <li><button id="gestisci-opzioni-utente">Gestisci opzioni prelievo utenti</button></li>
           <li><button id="vedi-richieste">Gestisci richieste utenti</button></li>
           <li><button id="modifica-saldo">Modifica saldo utente</button></li>
           <li><button id="vedi-storico-op">Storico globale</button></li>
@@ -388,6 +393,103 @@ document.addEventListener('DOMContentLoaded', () => {
           const data = await res.json();
           document.getElementById('importi-msg').innerText = data.message;
         };
+      };
+
+      document.getElementById('gestisci-opzioni-utente').onclick = async () => {
+        const area = document.getElementById('operatore-area');
+        area.innerHTML = "<h3>Gestisci opzioni prelievo utenti</h3><p>Caricamento utenti...</p>";
+        
+        try {
+          const res = await fetch('/api/utenti');
+          const utenti = await res.json();
+          
+          if (!utenti.length) {
+            area.innerHTML = "<p>Nessun utente trovato.</p>";
+            return;
+          }
+          
+          area.innerHTML = `
+            <h3>Gestisci opzioni prelievo utenti</h3>
+            <p><strong>Nota:</strong> Supporta valori decimali (es: 0.02, 5.50, 10.75). Separa i valori con virgole.</p>
+            <form id="opzioni-utente-form">
+              <label for="utente-select">Seleziona utente:</label>
+              <select id="utente-select" required>
+                <option value="">-- Scegli un utente --</option>
+                ${utenti.map(u => `<option value="${u.username}">${u.username}</option>`).join('')}
+              </select>
+              <label for="opzioni-prelievo">Opzioni di prelievo (es: 0.02,0.50,1.00,5.00,10.00):</label>
+              <input type="text" id="opzioni-prelievo" placeholder="0.02,0.50,1.00,5.00,10.00" />
+              <button type="submit">Aggiorna opzioni utente</button>
+            </form>
+            <div id="opzioni-utente-msg"></div>
+            <div id="opzioni-utente-preview"></div>
+          `;
+          
+          document.getElementById('utente-select').onchange = async (e) => {
+            const username = e.target.value;
+            const preview = document.getElementById('opzioni-utente-preview');
+            const opzioniInput = document.getElementById('opzioni-prelievo');
+            
+            if (!username) {
+              preview.innerHTML = '';
+              opzioniInput.value = '';
+              return;
+            }
+            
+            try {
+              const res = await fetch(`/api/importi-disponibili?username=${encodeURIComponent(username)}`);
+              const opzioni = await res.json();
+              
+              preview.innerHTML = `
+                <h4>Opzioni attuali per ${username}:</h4>
+                <p>${opzioni.join(', ')}€</p>
+              `;
+              
+              opzioniInput.value = opzioni.join(',');
+            } catch (err) {
+              preview.innerHTML = `<p style="color: red;">Errore nel caricamento delle opzioni attuali</p>`;
+            }
+          };
+          
+          document.getElementById('opzioni-utente-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('utente-select').value;
+            const opzioniText = document.getElementById('opzioni-prelievo').value.trim();
+            
+            if (!username) {
+              document.getElementById('opzioni-utente-msg').innerText = 'Seleziona un utente';
+              return;
+            }
+            
+            if (!opzioniText) {
+              document.getElementById('opzioni-utente-msg').innerText = 'Inserisci le opzioni di prelievo';
+              return;
+            }
+            
+            try {
+              const withdrawalOptions = opzioniText.split(',').map(x => x.trim()).filter(x => x);
+              
+              const res = await fetch('/api/imposta-importi-utente', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, withdrawalOptions })
+              });
+              
+              const data = await res.json();
+              document.getElementById('opzioni-utente-msg').innerText = data.message;
+              
+              if (data.success) {
+                // Refresh the preview
+                document.getElementById('utente-select').dispatchEvent(new Event('change'));
+              }
+            } catch (err) {
+              document.getElementById('opzioni-utente-msg').innerText = 'Errore nella richiesta';
+            }
+          };
+          
+        } catch (err) {
+          area.innerHTML = "<p>Errore nel caricamento degli utenti.</p>";
+        }
       };
 
       document.getElementById('vedi-richieste').onclick = async () => {

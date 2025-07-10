@@ -234,31 +234,54 @@ app.get('/api/lista-conversazioni', async (req, res) => {
 
 // --- MISS SECTION ---
 
-// Importi disponibili per prelievi
+// Importi disponibili per prelievi (user-specific or global fallback)
 app.get('/api/importi-disponibili', async (req, res) => {
-  const db = await connectToMongo();
-  const op = await db.collection('users').findOne({ role: 'operatore' });
-  res.json(op ? op.importiDisponibili : [10,20,50,100]);
+  try {
+    const { username } = req.query;
+    const db = await connectToMongo();
+    
+    // If username is provided, check for user-specific withdrawal options
+    if (username) {
+      const user = await db.collection('users').findOne({ username, role: 'miss' });
+      if (user && user.withdrawalOptions && Array.isArray(user.withdrawalOptions) && user.withdrawalOptions.length > 0) {
+        return res.json(user.withdrawalOptions);
+      }
+    }
+    
+    // Fallback to global operator settings
+    const op = await db.collection('users').findOne({ role: 'operatore' });
+    res.json(op ? op.importiDisponibili : [10, 20, 50, 100]);
+  } catch (err) {
+    console.error('Error getting withdrawal options:', err);
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
 });
 
 // Richiesta prelievo (Miss)
 app.post('/api/richiesta-prelievo', async (req, res) => {
   try {
     const { username, importo } = req.body;
-    if (!importo || importo <= 0) {
+    
+    // Parse and validate the amount (support decimals)
+    const parsedImporto = parseFloat(importo);
+    if (!parsedImporto || parsedImporto <= 0) {
       return res.json({ success: false, message: 'Importo non valido' });
     }
+    
+    // Round to 2 decimal places to handle floating point precision
+    const roundedImporto = Math.round(parsedImporto * 100) / 100;
+    
     const db = await connectToMongo();
     const user = await db.collection('users').findOne({ username, role: 'miss' });
     if (!user) {
       return res.json({ success: false, message: 'Utente non trovato' });
     }
-    if (user.saldo < importo) {
+    if (user.saldo < roundedImporto) {
       return res.json({ success: false, message: 'Saldo insufficiente' });
     }
     await db.collection('richieste').insertOne({
       username,
-      importo,
+      importo: roundedImporto,
       stato: 'in attesa',
       data: new Date().toISOString(),
       tipo: 'prelievo'
@@ -267,7 +290,7 @@ app.post('/api/richiesta-prelievo', async (req, res) => {
       $push: {
         storico: {
           tipo: 'richiesta-prelievo',
-          importo,
+          importo: roundedImporto,
           data: new Date().toISOString(),
           note: 'Richiesta inviata'
         }
@@ -275,6 +298,7 @@ app.post('/api/richiesta-prelievo', async (req, res) => {
     });
     res.json({ success: true, message: 'Richiesta inviata! Attendi risposta dall\'operatore.' });
   } catch (err) {
+    console.error('Error processing withdrawal request:', err);
     res.status(500).json({ success: false, message: 'Errore server' });
   }
 });
@@ -461,6 +485,57 @@ app.post('/api/imposta-importi', async (req, res) => {
     res.json({ success: true, message: 'Importi aggiornati!' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Errore server' });
+  }
+});
+
+// Imposta importi disponibili per utente specifico (Operatore)
+app.post('/api/imposta-importi-utente', async (req, res) => {
+  try {
+    const { username, withdrawalOptions } = req.body;
+    
+    if (!username) {
+      return res.json({ success: false, message: 'Username richiesto' });
+    }
+    
+    // Validate withdrawal options - support decimals and ensure positive values
+    if (!Array.isArray(withdrawalOptions)) {
+      return res.json({ success: false, message: 'Le opzioni di prelievo devono essere un array' });
+    }
+    
+    const validOptions = withdrawalOptions.map(opt => {
+      const num = parseFloat(opt);
+      if (isNaN(num) || num <= 0) {
+        throw new Error(`Valore non valido: ${opt}`);
+      }
+      // Round to 2 decimal places to handle floating point precision
+      return Math.round(num * 100) / 100;
+    });
+    
+    const db = await connectToMongo();
+    const user = await db.collection('users').findOne({ username, role: 'miss' });
+    
+    if (!user) {
+      return res.json({ success: false, message: 'Utente non trovato' });
+    }
+    
+    await db.collection('users').updateOne(
+      { username, role: 'miss' }, 
+      { 
+        $set: { withdrawalOptions: validOptions },
+        $push: {
+          storico: {
+            tipo: 'modifica-opzioni-prelievo',
+            data: new Date().toISOString(),
+            note: `Opzioni di prelievo modificate dall'operatore: ${validOptions.join(', ')}€`
+          }
+        }
+      }
+    );
+    
+    res.json({ success: true, message: 'Opzioni di prelievo utente aggiornate!' });
+  } catch (err) {
+    console.error('Error setting user withdrawal options:', err);
+    res.status(500).json({ success: false, message: err.message || 'Errore server' });
   }
 });
 
