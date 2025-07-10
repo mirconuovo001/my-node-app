@@ -240,7 +240,12 @@ app.get('/api/importi-disponibili', async (req, res) => {
   const op = await db.collection('users').findOne({ role: 'operatore' });
   res.json(op ? op.importiDisponibili : [10,20,50,100]);
 });
-
+// Ottieni importi disponibili per un utente Miss specifico
+app.get('/api/importi-disponibili/:username', async (req, res) => {
+  const db = await connectToMongo();
+  const user = await db.collection('users').findOne({ username: req.params.username, role: 'miss' });
+  res.json(user && user.importiDisponibili ? user.importiDisponibili : [10, 20, 50, 100]);
+});
 // Richiesta prelievo (Miss)
 app.post('/api/richiesta-prelievo', async (req, res) => {
   try {
@@ -458,6 +463,20 @@ app.post('/api/imposta-importi', async (req, res) => {
     const { importiDisponibili } = req.body;
     const db = await connectToMongo();
     await db.collection('users').updateOne({ role: 'operatore' }, { $set: { importiDisponibili } });
+    res.json({ success: true, message: 'Importi aggiornati!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Errore server' });
+  }
+});
+// Imposta importi disponibili per un utente specifico (Miss)
+app.post('/api/imposta-importi-utente', async (req, res) => {
+  try {
+    const { username, importiDisponibili } = req.body;
+    const db = await connectToMongo();
+    await db.collection('users').updateOne(
+      { username, role: 'miss' },
+      { $set: { importiDisponibili } }
+    );
     res.json({ success: true, message: 'Importi aggiornati!' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Errore server' });
